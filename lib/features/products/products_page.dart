@@ -78,8 +78,14 @@ class _ProductsPageState extends State<ProductsPage> {
       name: _nameController.text.trim(),
       price: double.parse(_priceController.text.trim().replaceAll(',', '.')),
       stock: int.parse(_stockController.text.trim()),
-      barcode: _barcodeController.text.trim().isEmpty ? null : _barcodeController.text.trim().isEmpty ? null : _barcodeController.text.trim(),
+      barcode: _barcodeController.text.trim().isEmpty 
+        ? null 
+        : _barcodeController.text.trim(),
     );
+
+    final String message = _editingIndex != null 
+      ? 'Produit mis à jour' 
+      : 'Produit ajouté avec succès';
 
     setState(() {
       if(_editingIndex != null) {
@@ -96,7 +102,7 @@ class _ProductsPageState extends State<ProductsPage> {
     _barcodeController.clear();
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(_editingIndex != null ? 'Produit mis à jour' : 'Produit ajouté avec succès')),
+      SnackBar(content: Text(message)),
     );
   }
 
@@ -274,20 +280,31 @@ class _ProductsPageState extends State<ProductsPage> {
                         DataCell(Text('${product.price.toStringAsFixed(2)} €')),
                         DataCell(Text(product.stock.toString())),
                         DataCell(Text(product.barcode ?? '-')),
-                        DataCell(Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                size: 20,
-                                color: Colors.red,
+                        DataCell(
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.edit_outlined, 
+                                  size: 20,
+                                ),
+                                
+                                tooltip: 'Modifier',
+                                onPressed: () => _startEditing(index),
                               ),
 
-                              tooltip: 'Supprimer',
-                              onPressed: () => _deleteProduct(index),
-                            ),
-                          ],
-                        ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  size: 20,
+                                  color: Colors.red,
+                                ),
+
+                                tooltip: 'Supprimer',
+                                onPressed: () => _deleteProduct(index),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     );
