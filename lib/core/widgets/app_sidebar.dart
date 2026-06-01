@@ -15,10 +15,9 @@ class AppSidebar extends StatelessWidget {
     return NavigationRail(
       selectedIndex: selectedIndex,
       onDestinationSelected: onDestinationSelected,
-      labelType: NavigationRailLabelType.all,
+      extended: true,
       minWidth: 88,
       minExtendedWidth: 220,
-      extended: true,
       destinations: const [
         NavigationRailDestination(
           icon: Icon(Icons.dashboard_outlined),
