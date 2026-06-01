@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme/app_colors.dart';
+import '../../features/barcode/barcode_page.dart';
+import '../../features/dashboard/dashboard_page.dart';
+import '../../features/pos/pos_page.dart';
+import '../../features/products/products_page.dart';
+import '../../features/settings/settings_page.dart';
 import 'app_sidebar.dart';
 
 class AppShell extends StatefulWidget {
-  final String title;
-  final Widget child;
-
-  const AppShell({
-    super.key,
-    required this.title,
-    required this.child,
-  });
+  const AppShell({super.key});
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -19,6 +17,22 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int selectedIndex = 0;
+
+  final List<String> _titles = const [
+    'Tableau de bord',
+    'Inventaire',
+    'Caisse',
+    'Codes-barres',
+    'Paramètres',
+  ];
+
+  final List<Widget> _pages = const [
+    DashboardPage(),
+    ProductsPage(),
+    PosPage(),
+    BarcodePage(),
+    SettingsPage(),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +64,7 @@ class _AppShellState extends State<AppShell> {
                   ),
 
                   child: Text(
-                    widget.title,
+                    _titles[selectedIndex],
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                 ),
@@ -58,7 +72,7 @@ class _AppShellState extends State<AppShell> {
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
-                    child: widget.child,
+                    child: _pages[selectedIndex],
                   ),
                 ),
               ],
