@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'theme/app_theme.dart';
 import '../core/widgets/app_shell.dart';
-import '../features/dashboard/dashboard_page.dart';
+import 'theme/app_theme.dart';
 
 class CaisseApp extends StatelessWidget {
   const CaisseApp({super.key});
@@ -13,10 +12,7 @@ class CaisseApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Logiciel de caisse',
       theme: AppTheme.lightTheme,
-      home: const AppShell(
-        title: 'Tableau de bord',
-        child: DashboardPage(),
-      ),
+      home: const AppShell(),
     );
   }
 }
