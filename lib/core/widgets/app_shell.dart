@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../app/theme/app_theme.dart';
+import '../../app/theme/app_colors.dart';
 import 'app_sidebar.dart';
 
 class AppShell extends StatefulWidget {
