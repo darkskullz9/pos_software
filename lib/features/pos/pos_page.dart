@@ -37,7 +37,7 @@ class _PosPageState extends State<PosPage> {
         (item) => item.product.name == product.name,
       );
 
-      if (index == -1) {
+      if (index != -1) {
         _cart[index].quantity++;
       } else {
         _cart.add(
@@ -136,7 +136,7 @@ class _PosPageState extends State<PosPage> {
 
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Vent enregistrée avec succès'),
+                    content: Text('Vente enregistrée avec succès'),
                     backgroundColor: Colors.green,
                   ),
                 );
@@ -364,8 +364,12 @@ class _PosPageState extends State<PosPage> {
                       children: [
                         Text(
                           'Total',
-                          style: Theme.of(context).textTheme.titleLarge 
-                          ?.copyWith(
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+
+                        Text(
+                          '${_total.toStringAsFixed(2)} €',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
                             color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
