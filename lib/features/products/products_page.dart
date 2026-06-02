@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/models/product_model.dart';
+import '../../data/services/product_service.dart';
 
 class ProductsPage extends StatefulWidget {
   const ProductsPage({super.key});
@@ -17,7 +18,7 @@ class _ProductsPageState extends State<ProductsPage> {
   final _stockController = TextEditingController();
   final _barcodeController = TextEditingController();
 
-  final List<ProductModel> _products = [];
+  final ProductService _productService = ProductService();
 
   int? _editingIndex;
 
@@ -31,7 +32,8 @@ class _ProductsPageState extends State<ProductsPage> {
   }
 
   void _startEditing(int index) {
-    final product = _products[index];
+    final product = _productService.products[index];
+
     setState(() {
       _editingIndex = index;
     });
@@ -55,7 +57,7 @@ class _ProductsPageState extends State<ProductsPage> {
 
   void _deleteProduct(int index) {
     setState(() {
-      _products.removeAt(index);
+      _productService.deleteProduct(index);
 
       if(_editingIndex == index) {
         _editingIndex = null;
@@ -67,7 +69,9 @@ class _ProductsPageState extends State<ProductsPage> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Produit supprimé')),
+      const SnackBar(
+        content: Text('Produit supprimé')
+      ),
     );
   }
 
@@ -89,10 +93,10 @@ class _ProductsPageState extends State<ProductsPage> {
 
     setState(() {
       if(_editingIndex != null) {
-        _products[_editingIndex!] = product;
+        _productService.updateProduct(_editingIndex!, product);
         _editingIndex = null;
       } else {
-        _products.add(product);
+        _productService.addProduct(product);
       }
     });
 
@@ -102,13 +106,16 @@ class _ProductsPageState extends State<ProductsPage> {
     _barcodeController.clear();
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+      SnackBar(
+        content: Text(message)
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final bool isEditing = _editingIndex != null;
+    final products = _productService.products;
     
     return Column(
       children: [
@@ -163,6 +170,7 @@ class _ProductsPageState extends State<ProductsPage> {
                       ),
 
                       const SizedBox(width: 16),
+
                       Expanded(
                         child: TextFormField(
                           controller: _priceController,
@@ -183,8 +191,13 @@ class _ProductsPageState extends State<ProductsPage> {
                               value.trim().replaceAll(',', '.'),
                             );
 
-                            if(parsed == null) return 'Prix invalide';
-                            if(parsed < 0) return 'Le prix doit être positif';
+                            if(parsed == null) {
+                              return 'Prix invalide';
+                            }
+
+                            if(parsed < 0) {
+                              return 'Le prix doit être positif';
+                            }
 
                             return null;
                           },
@@ -194,6 +207,7 @@ class _ProductsPageState extends State<ProductsPage> {
                   ),
 
                   const SizedBox(height: 16),
+
                   Row(
                     children: [
                       Expanded(
@@ -212,8 +226,13 @@ class _ProductsPageState extends State<ProductsPage> {
 
                             final parsed = int.tryParse(value.trim());
 
-                            if(parsed == null) return 'Stock invalide';
-                            if(parsed < 0) return 'Le stock doit êtrepositif';
+                            if(parsed == null) {
+                              return 'Stock invalide';
+                            }
+
+                            if(parsed < 0) {
+                              return 'Le stock doit être positif';
+                            }
 
                             return null;
                           },
@@ -252,65 +271,68 @@ class _ProductsPageState extends State<ProductsPage> {
           child: Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
-              child: _products.isEmpty 
-              ? const Center(child: Text('Aucun produit enregistré pour le moment'))
-              : SingleChildScrollView(
-                child: DataTable(
-                  columns: const [
-                    DataColumn(label: Text('Nom')),
-                    DataColumn(label: Text('Prix')),
-                    DataColumn(label: Text('Stock')),
-                    DataColumn(label: Text('Code-barres')),
-                    DataColumn(label: Text('Actions')),
-                  ],
+              child: products.isEmpty 
+                ? const Center(
+                  child: Text('Aucun produit enregistré pour le moment')
+                )
 
-                  rows: _products.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final product = entry.value;
+                : SingleChildScrollView(
+                  child: DataTable(
+                    columns: const [
+                      DataColumn(label: Text('Nom')),
+                      DataColumn(label: Text('Prix')),
+                      DataColumn(label: Text('Stock')),
+                      DataColumn(label: Text('Code-barres')),
+                      DataColumn(label: Text('Actions')),
+                    ],
 
-                    return DataRow(
-                      color: WidgetStateProperty.resolveWith<Color?>(
-                        (states) => _editingIndex == index 
-                          ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
-                          : null,
-                      ),
+                    rows: products.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final product = entry.value;
 
-                      cells: [
-                        DataCell(Text(product.name)),
-                        DataCell(Text('${product.price.toStringAsFixed(2)} €')),
-                        DataCell(Text(product.stock.toString())),
-                        DataCell(Text(product.barcode ?? '-')),
-                        DataCell(
-                          Row(
-                            children: [
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.edit_outlined, 
-                                  size: 20,
-                                ),
-                                
-                                tooltip: 'Modifier',
-                                onPressed: () => _startEditing(index),
-                              ),
-
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.delete_outline,
-                                  size: 20,
-                                  color: Colors.red,
-                                ),
-
-                                tooltip: 'Supprimer',
-                                onPressed: () => _deleteProduct(index),
-                              ),
-                            ],
-                          ),
+                      return DataRow(
+                        color: WidgetStateProperty.resolveWith<Color?>(
+                          (states) => _editingIndex == index 
+                            ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
+                            : null,
                         ),
-                      ],
-                    );
-                  }).toList(),
+
+                        cells: [
+                          DataCell(Text(product.name)),
+                          DataCell(Text('${product.price.toStringAsFixed(2)} €')),
+                          DataCell(Text(product.stock.toString())),
+                          DataCell(Text(product.barcode ?? '-')),
+                          DataCell(
+                            Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.edit_outlined, 
+                                    size: 20,
+                                  ),
+                                  
+                                  tooltip: 'Modifier',
+                                  onPressed: () => _startEditing(index),
+                                ),
+
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    size: 20,
+                                    color: Colors.red,
+                                  ),
+
+                                  tooltip: 'Supprimer',
+                                  onPressed: () => _deleteProduct(index),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
                 ),
-              ),
             ),
           ),
         ),
