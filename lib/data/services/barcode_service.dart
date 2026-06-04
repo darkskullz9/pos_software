@@ -1,52 +1,43 @@
 class BarcodeService {
-  static final BarcodeService _instance = BarcodeService._internal();
-  factory BarcodeService() => _instance;
-  BarcodeService._internal();
-
-  String generateEan13FromSeed(String seed) {
-    final digits = seed.replaceAll(RegExp(r'\D'), '');
-
-    if(digits.length < 12) {
-      throw ArgumentError('EAN-13 requires at least 12 digits.');
+  String generateEan13FromBase(String base12) {
+    if(!RegExp(r'^\d{12}$').hasMatch(base12)) {
+      throw Exception('La base doit contenir exactement 12 chiffres');
     }
 
-    final twelveDigits = digits.substring(0, 12);
-    final checkDigit = _calculateCheckDigit(twelveDigits);
+    final digits = base12.split('').map(int.parse).toList();
 
-    return '$twelveDigits$checkDigit';
-  }
+    int sumOdd = 0;
+    int sumEven = 0;
 
-  bool isValidEan13(String code) {
-    final digits = code.replaceAll(RegExp(r'\D'), '');
-    if(digits.length != 13) return false;
-
-    final base = digits.substring(0, 12);
-    final checkDigit = int.parse(digits[12]);
-
-    return _calculateCheckDigit(base) == checkDigit;
-  }
-
-  int _calculateCheckDigit(String twelveDigits) {
-    if(twelveDigits.length != 12) {
-      throw ArgumentError('EAN-13 base must contain exactly 12 digits');
-    }
-
-    int oddSum = 0;
-    int evenSum = 0;
-
-    for(int i = 0; i < 12; i++) {
-      final digit = int.parse(twelveDigits[i]);
-
+    for(int i = 0; i < digits.length; i++) {
       if(i.isEven) {
-        oddSum += digit;
+        sumOdd += digits[i];
       } else {
-        evenSum += digit;
+        sumEven += digits[i];
       }
     }
 
-    final total = oddSum + (evenSum * 3);
-    final remainder = total % 10;
+    final total = sumOdd + (sumEven * 3);
+    final checkDigit = (10 - (total % 10)) % 10;
 
-    return remainder == 0 ? 0 : 10 - remainder;
+    return '$base12$checkDigit';
+  }
+
+  String generateClothingBarcode({
+    required int productIndex,
+    required int categoryCode,
+    required int colorCode,
+    required int sizeCode,
+    int storeCode = 1,
+  }) {
+    const prefix = '20';
+    final store = storeCode.toString().padLeft(2, '0');
+    final category = categoryCode.toString().padLeft(2, '0');
+    final color = colorCode.toString().padLeft(2, '0');
+    final size = sizeCode.toString().padLeft(2, '0');
+    final product = (productIndex + 1).toString().padLeft(2, '0');
+
+    final base12 = '$prefix$store$category$color$size$product';
+    return generateEan13FromBase(base12);
   }
 }

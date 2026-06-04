@@ -1,16 +1,26 @@
 import '../models/product_model.dart';
+import 'barcode_service.dart';
 
 class ProductService {
-  static final ProductService _instance = ProductService._internal();
-  factory ProductService() => _instance;
-  ProductService._internal();
+  final _barcodeService = BarcodeService();
 
   final List<ProductModel> _products = [];
 
-  List<ProductModel> get products => List.unmodifiable(_products);
+  List<ProductModel> get products => _products;
 
   void addProduct(ProductModel product) {
-    _products.add(product);
+    final index = _products.length;
+
+    final barcode = product.barcode ?? _barcodeService.generateClothingBarcode(
+      productIndex: index,
+      categoryCode: product.categoryCode,
+      colorCode: product.colorCode,
+      sizeCode: product.sizeCode,
+    );
+
+    _products.add(
+      product.copyWith(barcode: barcode),
+    );
   }
 
   void updateProduct(int index, ProductModel product) {
@@ -18,14 +28,7 @@ class ProductService {
   }
 
   void updateProductBarcode(int index, String barcode) {
-    final product = _products[index];
-
-    _products[index] = ProductModel(
-      name: product.name, 
-      price: product.price, 
-      stock: product.stock,
-      barcode: barcode,
-    );
+    _products[index] = _products[index].copyWith(barcode: barcode);
   }
 
   void deleteProduct(int index) {
@@ -37,11 +40,8 @@ class ProductService {
     if (index == -1) return;
 
     final p = _products[index];
-    _products[index] = ProductModel(
-      name: p.name,
-      price: p.price,
+    _products[index] = p.copyWith(
       stock: p.stock + quantity,
-      barcode: p.barcode,
     );
   }
 
@@ -50,11 +50,8 @@ class ProductService {
     if(index == -1) return;
 
     final p = _products[index];
-    _products[index] = ProductModel(
-      name: p.name,
-      price: p.price,
-      stock: (p.stock - quantity).clamp(0, p.stock),
-      barcode: p.barcode,
+    _products[index] = p.copyWith(
+      stock: (p.stock - quantity).clamp(0, p.stock).toInt(),
     );
   }
 
@@ -68,6 +65,7 @@ class ProductService {
 
   List<ProductModel> search(String query) {
     if(query.trim().isEmpty) return List.unmodifiable(_products);
+    
     return _products
       .where((p) => p.name.toLowerCase().contains(query.toLowerCase()))
       .toList();
