@@ -17,6 +17,17 @@ class ProductService {
     _products[index] = product;
   }
 
+  void updateProductBarcode(int index, String barcode) {
+    final product = _products[index];
+
+    _products[index] = ProductModel(
+      name: product.name, 
+      price: product.price, 
+      stock: product.stock,
+      barcode: barcode,
+    );
+  }
+
   void deleteProduct(int index) {
     _products.removeAt(index);
   }
