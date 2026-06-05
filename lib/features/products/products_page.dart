@@ -4,7 +4,12 @@ import '../../data/models/product_model.dart';
 import '../../data/services/product_service.dart';
 
 class ProductsPage extends StatefulWidget {
-  const ProductsPage({super.key});
+  final ProductService productService;
+
+  const ProductsPage({
+    super.key,
+    required this.productService,
+  });
 
   @override
   State<ProductsPage> createState() => _ProductsPageState();
@@ -18,9 +23,13 @@ class _ProductsPageState extends State<ProductsPage> {
   final _stockController = TextEditingController();
   final _barcodeController = TextEditingController();
 
-  final ProductService _productService = ProductService();
+  late final ProductService _productService = widget.productService;
 
   int? _editingIndex;
+
+  int _selectedCategoryCode = 10;
+  int _selectedColorCode = 1;
+  int _selectedSizeCode = 3;
 
   @override
   void dispose() {
@@ -36,6 +45,9 @@ class _ProductsPageState extends State<ProductsPage> {
 
     setState(() {
       _editingIndex = index;
+      _selectedCategoryCode = product.categoryCode;
+      _selectedColorCode = product.colorCode;
+      _selectedSizeCode = product.sizeCode;
     });
 
     _nameController.text = product.name;
@@ -44,15 +56,19 @@ class _ProductsPageState extends State<ProductsPage> {
     _barcodeController.text = product.barcode ?? '';
   }
 
-  void _cancelEditing() {
-    setState(() {
-      _editingIndex = null;
-    });
-
+  void _resetForm() {
+    _editingIndex = null;
     _nameController.clear();
     _priceController.clear();
     _stockController.clear();
     _barcodeController.clear();
+    _selectedCategoryCode = 10;
+    _selectedColorCode = 1;
+    _selectedSizeCode = 3;
+  }
+
+  void _cancelEditing() {
+    setState(_resetForm);
   }
 
   void _deleteProduct(int index) {
@@ -60,11 +76,9 @@ class _ProductsPageState extends State<ProductsPage> {
       _productService.deleteProduct(index);
 
       if(_editingIndex == index) {
-        _editingIndex = null;
-        _nameController.clear();
-        _priceController.clear();
-        _stockController.clear();
-        _barcodeController.clear();
+        _resetForm();
+      } else if(_editingIndex != null && _editingIndex! > index) {
+        _editingIndex = _editingIndex! - 1;
       }
     });
 
@@ -82,34 +96,70 @@ class _ProductsPageState extends State<ProductsPage> {
       name: _nameController.text.trim(),
       price: double.parse(_priceController.text.trim().replaceAll(',', '.')),
       stock: int.parse(_stockController.text.trim()),
-      barcode: _barcodeController.text.trim().isEmpty 
-        ? null 
-        : _barcodeController.text.trim(),
+      barcode: _barcodeController.text.trim().isEmpty ? null : _barcodeController.text.trim(),
+      categoryCode: _selectedCategoryCode,
+      colorCode: _selectedColorCode,
+      sizeCode: _selectedSizeCode,
     );
 
-    final String message = _editingIndex != null 
-      ? 'Produit mis à jour' 
-      : 'Produit ajouté avec succès';
+    final String message = _editingIndex != null ? 'Produit mis à jour' : 'Produit ajouté avec succès';
 
     setState(() {
       if(_editingIndex != null) {
         _productService.updateProduct(_editingIndex!, product);
-        _editingIndex = null;
+        _resetForm();
       } else {
         _productService.addProduct(product);
+        _resetForm();
       }
     });
-
-    _nameController.clear();
-    _priceController.clear();
-    _stockController.clear();
-    _barcodeController.clear();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message)
       ),
     );
+  }
+
+  String _categoryLabel(int code) {
+    switch (code) {
+      case 10:
+        return 'Vêtement';
+      default:
+        return 'Autre';
+    }
+  }
+
+  String _colorLabel(int code) {
+    switch (code) {
+      case 1:
+        return 'Noir';
+      case 2:
+        return 'Blanc';
+      case 3:
+        return 'Bleu';
+      case 4:
+        return 'Rouge';
+      default:
+        return 'Inconnu';
+    }
+  }
+
+  String _sizeLabel(int code) {
+    switch (code) {
+      case 1:
+        return 'XS';
+      case 2:
+        return 'S';
+      case 3:
+        return 'M';
+      case 4:
+        return 'L';
+      case 5:
+        return 'XL';
+      default:
+        return '-';
+    }
   }
 
   @override
@@ -145,7 +195,6 @@ class _ProductsPageState extends State<ProductsPage> {
                   ),
 
                   const SizedBox(height: 20),
-
                   Row(
                     children: [
                       Expanded(
@@ -170,7 +219,6 @@ class _ProductsPageState extends State<ProductsPage> {
                       ),
 
                       const SizedBox(width: 16),
-
                       Expanded(
                         child: TextFormField(
                           controller: _priceController,
@@ -207,7 +255,6 @@ class _ProductsPageState extends State<ProductsPage> {
                   ),
 
                   const SizedBox(height: 16),
-
                   Row(
                     children: [
                       Expanded(
@@ -251,6 +298,74 @@ class _ProductsPageState extends State<ProductsPage> {
                     ],
                   ),
 
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<int>(
+                          initialValue: _selectedCategoryCode,
+                          decoration: const InputDecoration(
+                            labelText: 'Catégorie',
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 10,
+                              child: Text('10 - Vêtements'),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => _selectedCategoryCode = value);
+                            }
+                          },
+                        ),
+                      ),
+
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: DropdownButtonFormField<int>(
+                          initialValue: _selectedColorCode,
+                          decoration: const InputDecoration(
+                            labelText: 'Couleur',
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 1, child: Text('01 - Noir')),
+                            DropdownMenuItem(value: 2, child: Text('02 - Blanc')),
+                            DropdownMenuItem(value: 3, child: Text('03 - Bleu')),
+                            DropdownMenuItem(value: 4, child: Text('04 - Rouge')),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => _selectedColorCode = value);
+                            }
+                          },
+                        ),
+                      ),
+
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: DropdownButtonFormField<int>(
+                          initialValue: _selectedSizeCode,
+                          decoration: const InputDecoration(
+                            labelText: 'Taille',
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 1, child: Text('01 - XS')),
+                            DropdownMenuItem(value: 2, child: Text('02 - S')),
+                            DropdownMenuItem(value: 3, child: Text('03 - M')),
+                            DropdownMenuItem(value: 4, child: Text('04 - L')),
+                            DropdownMenuItem(value: 5, child: Text('05 - XL')),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => _selectedSizeCode = value);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+
                   const SizedBox(height: 20),
                   Align(
                     alignment: Alignment.centerRight,
@@ -282,6 +397,9 @@ class _ProductsPageState extends State<ProductsPage> {
                       DataColumn(label: Text('Nom')),
                       DataColumn(label: Text('Prix')),
                       DataColumn(label: Text('Stock')),
+                      DataColumn(label: Text('Catégorie')),
+                      DataColumn(label: Text('Couleur')),
+                      DataColumn(label: Text('Taille')),
                       DataColumn(label: Text('Code-barres')),
                       DataColumn(label: Text('Actions')),
                     ],
@@ -301,6 +419,9 @@ class _ProductsPageState extends State<ProductsPage> {
                           DataCell(Text(product.name)),
                           DataCell(Text('${product.price.toStringAsFixed(2)} €')),
                           DataCell(Text(product.stock.toString())),
+                          DataCell(Text(_categoryLabel(product.categoryCode))),
+                          DataCell(Text(_colorLabel(product.colorCode))),
+                          DataCell(Text(_sizeLabel(product.sizeCode))),
                           DataCell(Text(product.barcode ?? '-')),
                           DataCell(
                             Row(

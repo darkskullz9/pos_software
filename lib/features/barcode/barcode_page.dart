@@ -4,17 +4,28 @@ import 'package:flutter/material.dart';
 import '../../data/services/product_service.dart';
 
 class BarcodePage extends StatefulWidget {
-  const BarcodePage({super.key});
+  final ProductService productService;
+
+  const BarcodePage({
+    super.key,
+    required this.productService,
+  });
 
   @override
   State<BarcodePage> createState() => _BarcodePageState();
 }
 
 class _BarcodePageState extends State<BarcodePage> {
-  final _productService = ProductService();
+  late final ProductService _productService;
 
   String? _selectedBarcode;
   String? _selectedLabel;
+
+  @override
+  void initState() {
+    super.initState();
+    _productService = widget.productService;
+  }
 
   void _showBarcode(String name, String? barcode) {
     setState(() {
@@ -74,7 +85,7 @@ class _BarcodePageState extends State<BarcodePage> {
                   ? const Center(child: Text('Aucun produit disponible'))
                   : ListView.separated(
                       itemCount: products.length,
-                      separatorBuilder: (_, __) => const Divider(),
+                      separatorBuilder: (_, _) => const Divider(),
                       itemBuilder: (context, index) {
                         final product = products[index];
 

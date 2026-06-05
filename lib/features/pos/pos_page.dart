@@ -5,14 +5,19 @@ import '../../data/models/product_model.dart';
 import '../../data/services/product_service.dart';
 
 class PosPage extends StatefulWidget {
-  const PosPage({super.key});
+  final ProductService productService;
+
+  const PosPage({
+    super.key,
+    required this.productService,
+  });
 
   @override
   State<PosPage> createState() => _PosPageState();
 }
 
 class _PosPageState extends State<PosPage> {
-  final ProductService _productService = ProductService();
+  late final ProductService _productService;
 
   final TextEditingController _barcodeController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
@@ -22,6 +27,12 @@ class _PosPageState extends State<PosPage> {
   final List<CartItemModel> _cart = [];
 
   String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _productService = widget.productService;
+  }
 
   @override
   void dispose() {
@@ -153,7 +164,7 @@ class _PosPageState extends State<PosPage> {
 
   @override
   Widget build(BuildContext context) {
-    final products = _searchQuery.isEmpty
+    final products = _searchQuery.trim().isEmpty
       ? _productService.products
       : _productService.search(_searchQuery);
 
