@@ -26,6 +26,16 @@ class _PosPageState extends State<PosPage> {
 
   final List<CartItemModel> _cart = [];
 
+  int _quantityInCart(ProductModel product) {
+    final index = _cart.indexWhere((item) => item.product.name == product.name);
+    if (index == -1) return 0;
+    return _cart[index].quantity;
+  }
+
+  bool _canAddProduct(ProductModel product) {
+    return _quantityInCart(product) < product.stock;
+  }
+
   String _searchQuery = '';
 
   @override
@@ -43,6 +53,17 @@ class _PosPageState extends State<PosPage> {
   }
 
   void _addToCart(ProductModel product) {
+    if(!_canAddProduct(product)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Stock insuffisant pour ${product.name}'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      _barcodeFocusNode.requestFocus();
+      return;
+    }
+
     setState(() {
       final index = _cart.indexWhere(
         (item) => item.product.name == product.name,
@@ -87,6 +108,18 @@ class _PosPageState extends State<PosPage> {
   }
 
   void _updateQuantity(int index, int delta) {
+    final item = _cart[index];
+
+    if(delta > 0 && item.quantity >= item.product.stock) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Stock maximum atteint pour ${item.product.name}'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _cart[index].quantity += delta;
 
@@ -231,36 +264,40 @@ class _PosPageState extends State<PosPage> {
                     
                     itemBuilder: (context, index) {
                       final product = products[index];
+                      final canAdd = _canAddProduct(product);
 
                       return Card(
                         clipBehavior: Clip.antiAlias,
                         child: InkWell(
-                          onTap: () => _addToCart(product),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  product.name,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.titleMedium,
-                                ),
+                          onTap: canAdd ? () => _addToCart(product) : null,
+                          child: Opacity(
+                            opacity: canAdd ? 1 : 0.5,
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    product.name,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context).textTheme.titleMedium,
+                                  ),
 
-                                const SizedBox(height: 6),
-                                Text(
-                                  '${product.price.toStringAsFixed(2)} €',
-                                  style: Theme.of(context).textTheme.bodyMedium,
-                                ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    '${product.price.toStringAsFixed(2)} €',
+                                    style: Theme.of(context).textTheme.bodyMedium,
+                                  ),
 
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Stock : ${product.stock}',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ],
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Stock : ${product.stock}',
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -346,7 +383,9 @@ class _PosPageState extends State<PosPage> {
                                     ),
 
                                     IconButton(
-                                      onPressed: () => _updateQuantity(index, 1), 
+                                      onPressed: item.quantity < item.product.stock 
+                                        ? () => _updateQuantity(index, 1) 
+                                        : null,
                                       icon: const Icon(Icons.add, size: 18),
                                     ),
                                   ],

@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
+import '../../data/services/product_service.dart';
 
 class DashboardPage extends StatelessWidget {
-  const DashboardPage({super.key});
+  final ProductService productService;
+
+  const DashboardPage({
+    super.key,
+    required this.productService,
+  });
 
   @override
   Widget build(BuildContext context) {

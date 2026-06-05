@@ -37,14 +37,6 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> pages = [
-      const DashboardPage(),
-      ProductsPage(productService: widget.productService),
-      PosPage(productService: widget.productService),
-      BarcodePage(productService: widget.productService),
-      const SettingsPage(),
-    ];
-
     return Scaffold(
       body: Row(
         children: [
@@ -56,6 +48,7 @@ class _AppShellState extends State<AppShell> {
               });
             },
           ),
+
           const VerticalDivider(width: 1, color: AppColors.border),
           Expanded(
             child: Column(
@@ -73,10 +66,20 @@ class _AppShellState extends State<AppShell> {
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                 ),
+                
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
-                    child: pages[selectedIndex],
+                    child: IndexedStack(
+                      index: selectedIndex,
+                      children: [
+                        DashboardPage(productService: widget.productService),
+                        ProductsPage(productService: widget.productService),
+                        PosPage(productService: widget.productService),
+                        BarcodePage(productService: widget.productService),
+                        const SettingsPage(),
+                      ],
+                    ),
                   ),
                 ),
               ],
