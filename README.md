@@ -1,3 +1,3 @@
-# flutter_application_1
+# POS Software
 
 A new Flutter project.
