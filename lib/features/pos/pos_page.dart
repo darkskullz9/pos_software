@@ -26,6 +26,23 @@ class _PosPageState extends State<PosPage> {
 
   final List<CartItemModel> _cart = [];
 
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _productService = widget.productService;
+    _productService.setCurrentCartCount(0);
+  }
+
+  @override
+  void dispose() {
+    _barcodeController.dispose();
+    _searchController.dispose();
+    _barcodeFocusNode.dispose();
+    super.dispose();
+  }
+
   int _quantityInCart(ProductModel product) {
     final index = _cart.indexWhere((item) => item.product.name == product.name);
     if (index == -1) return 0;
@@ -36,21 +53,11 @@ class _PosPageState extends State<PosPage> {
     return _quantityInCart(product) < product.stock;
   }
 
-  String _searchQuery = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _productService = widget.productService;
+  void _syncCartCount() {
+    final totalItems = _cart.fold(0, (sum, item) => sum + item.quantity);
+    _productService.setCurrentCartCount(totalItems);
   }
 
-  @override
-  void dispose() {
-    _barcodeController.dispose();
-    _searchController.dispose();
-    _barcodeFocusNode.dispose();
-    super.dispose();
-  }
 
   void _addToCart(ProductModel product) {
     if(!_canAddProduct(product)) {
@@ -79,7 +86,8 @@ class _PosPageState extends State<PosPage> {
         );
       }
     });
-
+    
+    _syncCartCount();
     _barcodeFocusNode.requestFocus();
   }
 
@@ -127,6 +135,8 @@ class _PosPageState extends State<PosPage> {
         _cart.removeAt(index);
       }
     });
+
+    _syncCartCount();
   }
 
   void _clearCart() {
@@ -134,6 +144,7 @@ class _PosPageState extends State<PosPage> {
       _cart.clear();
     });
 
+    _syncCartCount();
     _barcodeFocusNode.requestFocus();
   }
 
@@ -165,6 +176,8 @@ class _PosPageState extends State<PosPage> {
 
             ElevatedButton(
               onPressed: () {
+                final saleTotal = _total;
+
                 for(final item in _cart) {
                   _productService.decrementStock(
                     item.product.name, 
@@ -172,11 +185,15 @@ class _PosPageState extends State<PosPage> {
                   );
                 }
 
+                _productService.addSale(saleTotal);
+
                 Navigator.of(context).pop();
 
                 setState(() {
                   _cart.clear();
                 });
+
+                _syncCartCount();
 
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
