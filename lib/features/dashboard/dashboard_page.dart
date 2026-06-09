@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../data/services/product_service.dart';
 
 class DashboardPage extends StatelessWidget {
@@ -11,30 +12,41 @@ class DashboardPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 3,
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      childAspectRatio: 1.8,
-      children: const [
-        _DashboardCard(
-          title: 'Ventes',
-          value: '0,00 €',
-          subtitle: 'Aucune vente enregistrée',
-        ),
+    return ListenableBuilder(
+      listenable: productService,
+      builder: (context, child) {
+        return GridView.count(
+          crossAxisCount: 3,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 1.8,
+          children: [
+            _DashboardCard(
+              title: 'Ventes',
+              value: '${productService.salesTotal.toStringAsFixed(2)} €',
+              subtitle: productService.salesTotal == 0 
+                ? 'Aucune vente enregistrée'
+                : 'Ventes encaissées',
+            ),
 
-        _DashboardCard(
-          title: 'Produits en stock',
-          value: '0',
-          subtitle: 'Aucun produit en stock',
-        ),
+            _DashboardCard(
+              title: 'Produits en stock',
+              value: '${productService.totalStock}',
+              subtitle: productService.totalStock == 0 
+                ? 'Aucun produit en stock' 
+                : 'Stock disponible',
+            ),
 
-        _DashboardCard(
-          title: 'Panier actuel',
-          value: '0',
-          subtitle: 'Aucun article ajouté',
-        ),
-      ],
+            _DashboardCard(
+              title: 'Panier actuel',
+              value: '${productService.currentCartCount}',
+              subtitle: productService.currentCartCount == 0 
+                ? 'Aucun article ajouté' 
+                : 'Articles dans le panier',
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -52,19 +64,22 @@ class _DashboardCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(20), child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
-
+        padding: const EdgeInsets.all(20), 
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start, 
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(title, style: theme.textTheme.titleMedium),
+            
             const SizedBox(height: 12),
+            Text(value, style: theme.textTheme.headlineMedium),
 
-            Text(value, style: Theme.of(context).textTheme.headlineMedium),
-
-            const Spacer(),
-
-            Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: 8),
+            Text(subtitle, style: theme.textTheme.bodyMedium),
           ],
         ),
       ),
