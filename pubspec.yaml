@@ -10,6 +10,8 @@ dependencies:
   flutter:
     sdk: flutter
   barcode_widget: ^2.0.4
+  pdf: ^3.11.0
+  printing: ^5.13.4
 
 dev_dependencies:
   flutter_test:
