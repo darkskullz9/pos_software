@@ -1,6 +1,6 @@
 class BarcodeService {
   String generateEan13FromBase(String base12) {
-    if(!RegExp(r'^\d{12}$').hasMatch(base12)) {
+    if (!RegExp(r'^\d{12}$').hasMatch(base12)) {
       throw Exception('La base doit contenir exactement 12 chiffres');
     }
 
@@ -9,8 +9,8 @@ class BarcodeService {
     int sumOdd = 0;
     int sumEven = 0;
 
-    for(int i = 0; i < digits.length; i++) {
-      if(i.isEven) {
+    for (int i = 0; i < digits.length; i++) {
+      if (i.isEven) {
         sumOdd += digits[i];
       } else {
         sumEven += digits[i];
@@ -26,15 +26,16 @@ class BarcodeService {
   String generateClothingBarcode({
     required int productIndex,
     required int categoryCode,
-    required int colorCode,
-    required int sizeCode,
+    int? colorCode,
+    int? sizeCode,
     int storeCode = 1,
   }) {
     const prefix = '20';
+
     final store = storeCode.toString().padLeft(2, '0');
     final category = categoryCode.toString().padLeft(2, '0');
-    final color = colorCode.toString().padLeft(2, '0');
-    final size = sizeCode.toString().padLeft(2, '0');
+    final color = (colorCode ?? 0).toString().padLeft(2, '0');
+    final size = (sizeCode ?? 0).toString().padLeft(2, '0');
     final product = (productIndex + 1).toString().padLeft(2, '0');
 
     final base12 = '$prefix$store$category$color$size$product';
