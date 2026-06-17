@@ -15,17 +15,21 @@ class ProductService extends ChangeNotifier {
   double get salesTotal => _salesTotal;
   int get currentCartCount => _currentCartCount;
 
-  int get totalStock => _products.fold(0, (sum, product) => sum + product.stock);
+  int get totalStock => _products.fold(
+        0,
+        (sum, product) => sum + product.stock,
+      );
 
   void addProduct(ProductModel product) {
     final index = _products.length;
 
-    final barcode = product.barcode ?? _barcodeService.generateClothingBarcode(
-      productIndex: index,
-      categoryCode: product.categoryCode,
-      colorCode: product.colorCode,
-      sizeCode: product.sizeCode,
-    );
+    final barcode = product.barcode ??
+        _barcodeService.generateClothingBarcode(
+          productIndex: index,
+          categoryCode: product.categoryCode,
+          colorCode: product.colorCode,
+          sizeCode: product.sizeCode,
+        );
 
     _products.add(
       product.copyWith(barcode: barcode),
@@ -53,9 +57,9 @@ class ProductService extends ChangeNotifier {
     final index = _products.indexWhere((p) => p.name == productName);
     if (index == -1) return;
 
-    final p = _products[index];
-    _products[index] = p.copyWith(
-      stock: p.stock + quantity,
+    final product = _products[index];
+    _products[index] = product.copyWith(
+      stock: product.stock + quantity,
     );
 
     notifyListeners();
@@ -63,11 +67,11 @@ class ProductService extends ChangeNotifier {
 
   void decrementStock(String productName, int quantity) {
     final index = _products.indexWhere((p) => p.name == productName);
-    if(index == -1) return;
+    if (index == -1) return;
 
-    final p = _products[index];
-    _products[index] = p.copyWith(
-      stock: (p.stock - quantity).clamp(0, p.stock).toInt(),
+    final product = _products[index];
+    _products[index] = product.copyWith(
+      stock: (product.stock - quantity).clamp(0, product.stock).toInt(),
     );
 
     notifyListeners();
@@ -86,16 +90,21 @@ class ProductService extends ChangeNotifier {
   ProductModel? findByBarcode(String barcode) {
     try {
       return _products.firstWhere((p) => p.barcode == barcode);
-    } catch(_) {
+    } catch (_) {
       return null;
     }
   }
 
   List<ProductModel> search(String query) {
-    if(query.trim().isEmpty) return List.unmodifiable(_products);
-    
-    return _products
-      .where((p) => p.name.toLowerCase().contains(query.toLowerCase()))
-      .toList();
+    if (query.trim().isEmpty) {
+      return List.unmodifiable(_products);
+    }
+
+    final normalizedQuery = query.toLowerCase().trim();
+
+    return _products.where((product) {
+      return product.name.toLowerCase().contains(normalizedQuery) ||
+          (product.brand?.toLowerCase().contains(normalizedQuery) ?? false);
+    }).toList();
   }
 }
