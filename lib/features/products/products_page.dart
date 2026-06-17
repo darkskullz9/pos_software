@@ -190,7 +190,8 @@ class _ProductsPageState extends State<ProductsPage> {
     if (quantity <= 0) return;
 
     final items = _productService.products
-        .where((product) => product.id != null && _selectedRows.contains(product.id))
+        .where((product) =>
+            product.id != null && _selectedRows.contains(product.id))
         .map((product) => LabelItemModel(
               product: product,
               quantity: quantity,
@@ -220,12 +221,10 @@ class _ProductsPageState extends State<ProductsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isEditing = _editingProductId != null;
-    final products = _productService.products;
-
     return ListenableBuilder(
       listenable: _productService,
       builder: (context, _) {
+        final bool isEditing = _editingProductId != null;
         final products = _productService.products;
 
         return LayoutBuilder(
@@ -244,13 +243,15 @@ class _ProductsPageState extends State<ProductsPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     isEditing
                                         ? 'Modifier le produit'
                                         : 'Ajouter un produit',
-                                    style: Theme.of(context).textTheme.titleLarge,
+                                    style:
+                                        Theme.of(context).textTheme.titleLarge,
                                   ),
                                   if (isEditing)
                                     TextButton.icon(
@@ -270,7 +271,8 @@ class _ProductsPageState extends State<ProductsPage> {
                                         labelText: 'Nom du produit',
                                       ),
                                       validator: (value) {
-                                        if (value == null || value.trim().isEmpty) {
+                                        if (value == null ||
+                                            value.trim().isEmpty) {
                                           return 'Le nom est obligatoire';
                                         }
                                         if (value.trim().length < 2) {
@@ -305,7 +307,8 @@ class _ProductsPageState extends State<ProductsPage> {
                                         decimal: true,
                                       ),
                                       validator: (value) {
-                                        if (value == null || value.trim().isEmpty) {
+                                        if (value == null ||
+                                            value.trim().isEmpty) {
                                           return 'Le prix est obligatoire';
                                         }
 
@@ -334,11 +337,13 @@ class _ProductsPageState extends State<ProductsPage> {
                                       ),
                                       keyboardType: TextInputType.number,
                                       validator: (value) {
-                                        if (value == null || value.trim().isEmpty) {
+                                        if (value == null ||
+                                            value.trim().isEmpty) {
                                           return 'Le stock est obligatoire';
                                         }
 
-                                        final parsed = int.tryParse(value.trim());
+                                        final parsed =
+                                            int.tryParse(value.trim());
 
                                         if (parsed == null) {
                                           return 'Stock invalide';
@@ -366,7 +371,7 @@ class _ProductsPageState extends State<ProductsPage> {
                                 children: [
                                   Expanded(
                                     child: DropdownButtonFormField<int>(
-                                      initialValue: _selectedCategoryCode,
+                                      value: _selectedCategoryCode,
                                       decoration: const InputDecoration(
                                         labelText: 'Catégorie',
                                       ),
@@ -378,7 +383,8 @@ class _ProductsPageState extends State<ProductsPage> {
                                       ],
                                       onChanged: (value) {
                                         if (value != null) {
-                                          setState(() => _selectedCategoryCode = value);
+                                          setState(
+                                              () => _selectedCategoryCode = value);
                                         }
                                       },
                                     ),
@@ -386,7 +392,7 @@ class _ProductsPageState extends State<ProductsPage> {
                                   const SizedBox(width: 16),
                                   Expanded(
                                     child: DropdownButtonFormField<int?>(
-                                      initialValue: _selectedColorCode,
+                                      value: _selectedColorCode,
                                       decoration: const InputDecoration(
                                         labelText: 'Couleur (optionnel)',
                                       ),
@@ -424,7 +430,7 @@ class _ProductsPageState extends State<ProductsPage> {
                                   const SizedBox(width: 16),
                                   Expanded(
                                     child: DropdownButtonFormField<int?>(
-                                      initialValue: _selectedSizeCode,
+                                      value: _selectedSizeCode,
                                       decoration: const InputDecoration(
                                         labelText: 'Taille (optionnel)',
                                       ),
@@ -565,8 +571,7 @@ class _ProductsPageState extends State<ProductsPage> {
                                                                 }
                                                               });
                                                             },
-                                                      color: WidgetStateProperty
-                                                          .resolveWith<Color?>(
+                                                      color: WidgetStateProperty.resolveWith<Color?>(
                                                         (states) => _editingProductId ==
                                                                 product.id
                                                             ? Theme.of(context)
@@ -578,8 +583,7 @@ class _ProductsPageState extends State<ProductsPage> {
                                                       cells: [
                                                         DataCell(Text(product.name)),
                                                         DataCell(Text(
-                                                          product.brand ??
-                                                              'Sans marque',
+                                                          product.brand ?? 'Sans marque',
                                                         )),
                                                         DataCell(Text(
                                                           '${product.price.toStringAsFixed(2)} €',
@@ -617,16 +621,13 @@ class _ProductsPageState extends State<ProductsPage> {
                                                               ),
                                                               IconButton(
                                                                 icon: const Icon(
-                                                                  Icons
-                                                                      .delete_outline,
+                                                                  Icons.delete_outline,
                                                                   size: 20,
                                                                   color: Colors.red,
                                                                 ),
                                                                 tooltip: 'Supprimer',
                                                                 onPressed: () =>
-                                                                    _deleteProduct(
-                                                                  product,
-                                                                ),
+                                                                    _deleteProduct(product),
                                                               ),
                                                             ],
                                                           ),

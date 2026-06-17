@@ -27,6 +27,7 @@ class _PosPageState extends State<PosPage> {
   final List<CartItemModel> _cart = [];
 
   String _searchQuery = '';
+  bool _isCheckingOut = false;
 
   @override
   void initState() {
@@ -44,7 +45,7 @@ class _PosPageState extends State<PosPage> {
   }
 
   int _quantityInCart(ProductModel product) {
-    final index = _cart.indexWhere((item) => item.product.name == product.name);
+    final index = _cart.indexWhere((item) => item.product.id == product.id);
     if (index == -1) return 0;
     return _cart[index].quantity;
   }
@@ -58,9 +59,8 @@ class _PosPageState extends State<PosPage> {
     _productService.setCurrentCartCount(totalItems);
   }
 
-
   void _addToCart(ProductModel product) {
-    if(!_canAddProduct(product)) {
+    if (!_canAddProduct(product)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Stock insuffisant pour ${product.name}'),
@@ -73,7 +73,7 @@ class _PosPageState extends State<PosPage> {
 
     setState(() {
       final index = _cart.indexWhere(
-        (item) => item.product.name == product.name,
+        (item) => item.product.id == product.id,
       );
 
       if (index != -1) {
@@ -86,7 +86,7 @@ class _PosPageState extends State<PosPage> {
         );
       }
     });
-    
+
     _syncCartCount();
     _barcodeFocusNode.requestFocus();
   }
@@ -94,13 +94,13 @@ class _PosPageState extends State<PosPage> {
   void _onBarcodeSubmitted(String value) {
     final barcode = value.trim();
 
-    if(barcode.isEmpty) return;
+    if (barcode.isEmpty) return;
 
     final product = _productService.findByBarcode(barcode);
 
     _barcodeController.clear();
 
-    if(product == null) {
+    if (product == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Aucun produit trouvé pour le code : $barcode'),
@@ -117,8 +117,14 @@ class _PosPageState extends State<PosPage> {
 
   void _updateQuantity(int index, int delta) {
     final item = _cart[index];
+    final latestProduct = item.product.id == null
+        ? item.product
+        : _productService.products.firstWhere(
+            (p) => p.id == item.product.id,
+            orElse: () => item.product,
+          );
 
-    if(delta > 0 && item.quantity >= item.product.stock) {
+    if (delta > 0 && item.quantity >= latestProduct.stock) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Stock maximum atteint pour ${item.product.name}'),
@@ -131,7 +137,7 @@ class _PosPageState extends State<PosPage> {
     setState(() {
       _cart[index].quantity += delta;
 
-      if(_cart[index].quantity <= 0) {
+      if (_cart[index].quantity <= 0) {
         _cart.removeAt(index);
       }
     });
@@ -152,315 +158,350 @@ class _PosPageState extends State<PosPage> {
     return _cart.fold(0, (sum, item) => sum + item.subtotal);
   }
 
-  void _checkout() {
-    if(_cart.isEmpty) return;
+  Future<void> _checkout() async {
+    if (_cart.isEmpty || _isCheckingOut) return;
 
-    showDialog(
-      context: context, 
+    final confirmed = await showDialog<bool>(
+      context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Confirmer l\'encaissement'),
           content: Text(
             'Total : ${_total.toStringAsFixed(2)} €\n\nConfirmer la vente ?',
           ),
-
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _barcodeFocusNode.requestFocus();
-              },
-
+              onPressed: () => Navigator.of(context).pop(false),
               child: const Text('Annuler'),
             ),
-
             ElevatedButton(
-              onPressed: () {
-                final saleTotal = _total;
-
-                for(final item in _cart) {
-                  _productService.decrementStock(
-                    item.product.name, 
-                    item.quantity,
-                  );
-                }
-
-                _productService.addSale(saleTotal);
-
-                Navigator.of(context).pop();
-
-                setState(() {
-                  _cart.clear();
-                });
-
-                _syncCartCount();
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Vente enregistrée avec succès'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-
-                _barcodeFocusNode.requestFocus();
-              },
+              onPressed: () => Navigator.of(context).pop(true),
               child: const Text('Confirmer'),
             ),
           ],
         );
       },
     );
+
+    if (confirmed != true) {
+      _barcodeFocusNode.requestFocus();
+      return;
+    }
+
+    setState(() {
+      _isCheckingOut = true;
+    });
+
+    try {
+      final saleTotal = _total;
+
+      for (final item in _cart) {
+        if (item.product.id != null) {
+          await _productService.decrementStock(
+            item.product.id!,
+            item.quantity,
+          );
+        }
+      }
+
+      _productService.addSale(saleTotal);
+
+      if (!mounted) return;
+
+      setState(() {
+        _cart.clear();
+      });
+
+      _syncCartCount();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vente enregistrée avec succès'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      _barcodeFocusNode.requestFocus();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingOut = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final products = _searchQuery.trim().isEmpty
-      ? _productService.products
-      : _productService.search(_searchQuery);
+    return ListenableBuilder(
+      listenable: _productService,
+      builder: (context, _) {
+        final products = _searchQuery.trim().isEmpty
+            ? _productService.products
+            : _productService.search(_searchQuery);
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          flex: 3,
-          child: Column(
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: TextField(
-                    controller: _barcodeController,
-                    focusNode: _barcodeFocusNode,
-                    autofocus: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Scannez un code-barres',
-                      prefixIcon: Icon(Icons.qr_code_scanner),
-                    ),
-
-                    onSubmitted: _onBarcodeSubmitted,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: const InputDecoration(
-                      labelText: 'Rechercher un produit',
-                      prefixIcon: Icon(Icons.search),
-                    ),
-
-                    onChanged: (value) {
-                      setState(() {
-                        _searchQuery = value;
-                      });
-                    },
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-              Expanded(
-                child: products.isEmpty
-                  ? const Center(
-                      child: Text('Aucun produit dans le catalogue'),
-                    )
-
-                  : GridView.builder(
-                    itemCount: products.length,
-                    gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: 1.6,
-                      ),
-                    
-                    itemBuilder: (context, index) {
-                      final product = products[index];
-                      final canAdd = _canAddProduct(product);
-
-                      return Card(
-                        clipBehavior: Clip.antiAlias,
-                        child: InkWell(
-                          onTap: canAdd ? () => _addToCart(product) : null,
-                          child: Opacity(
-                            opacity: canAdd ? 1 : 0.5,
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    product.name,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context).textTheme.titleMedium,
-                                  ),
-
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    '${product.price.toStringAsFixed(2)} €',
-                                    style: Theme.of(context).textTheme.bodyMedium,
-                                  ),
-
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Stock : ${product.stock}',
-                                    style: Theme.of(context).textTheme.bodySmall,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(width: 16),
-        SizedBox(
-          width: 360,
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 3,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-
-                    children: [
-                      Text(
-                        'Panier',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-
-                      if(_cart.isNotEmpty) 
-                        TextButton.icon(
-                          onPressed: _clearCart,
-                          icon: const Icon(Icons.delete_outline, size: 18), 
-                          label: const Text('Vider'),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: TextField(
+                        controller: _barcodeController,
+                        focusNode: _barcodeFocusNode,
+                        autofocus: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Scannez un code-barres',
+                          prefixIcon: Icon(Icons.qr_code_scanner),
                         ),
-                    ],
+                        onSubmitted: _onBarcodeSubmitted,
+                      ),
+                    ),
                   ),
-
-                  const Divider(),
-                  Expanded(
-                    child: _cart.isEmpty
-                      ? const Center(
-                        child: Text('Aucun article dans le panier'),
-                      )
-
-                      : ListView.builder(
-                        itemCount: _cart.length,
-                        itemBuilder: (context, index) {
-                          final item = _cart[index];
-
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 6),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        item.product.name,
-                                        style: Theme.of(context).textTheme.bodyLarge,
-                                      ),
-
-                                      Text(
-                                        '${item.product.price.toStringAsFixed(2)} € * ${item.quantity}',
-                                        style: Theme.of(context).textTheme.bodyMedium,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      onPressed: () => _updateQuantity(index, -1), 
-                                      icon: const Icon(Icons.remove, size: 18),
-                                    ),
-
-                                    Text(
-                                      item.quantity.toString(),
-                                      style: Theme.of(context).textTheme.bodyLarge,
-                                    ),
-
-                                    IconButton(
-                                      onPressed: item.quantity < item.product.stock 
-                                        ? () => _updateQuantity(index, 1) 
-                                        : null,
-                                      icon: const Icon(Icons.add, size: 18),
-                                    ),
-                                  ],
-                                ),
-
-                                SizedBox(
-                                  width: 80,
-                                  child: Text(
-                                    '${item.subtotal.toStringAsFixed(2)} €',
-                                    textAlign: TextAlign.right,
-                                    style: Theme.of(context).textTheme.bodyLarge,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
+                  const SizedBox(height: 12),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: const InputDecoration(
+                          labelText: 'Rechercher un produit',
+                          prefixIcon: Icon(Icons.search),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value;
+                          });
                         },
                       ),
+                    ),
                   ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: products.isEmpty
+                        ? const Center(
+                            child: Text('Aucun produit dans le catalogue'),
+                          )
+                        : GridView.builder(
+                            itemCount: products.length,
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                              childAspectRatio: 1.6,
+                            ),
+                            itemBuilder: (context, index) {
+                              final product = products[index];
+                              final canAdd = _canAddProduct(product);
 
-                  const Divider(),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Total',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-
-                        Text(
-                          '${_total.toStringAsFixed(2)} €',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: Theme.of(context).colorScheme.primary,
+                              return Card(
+                                clipBehavior: Clip.antiAlias,
+                                child: InkWell(
+                                  onTap: canAdd ? () => _addToCart(product) : null,
+                                  child: Opacity(
+                                    opacity: canAdd ? 1 : 0.5,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            product.name,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleMedium,
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            '${product.price.toStringAsFixed(2)} €',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyMedium,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Stock : ${product.stock}',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _cart.isEmpty ? null : _checkout, 
-                      icon: const Icon(Icons.payment),
-                      label: const Text('Encaisser'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                    ),
                   ),
                 ],
               ),
             ),
-          ),
-        ),
-      ],
+            const SizedBox(width: 16),
+            SizedBox(
+              width: 360,
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Panier',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          if (_cart.isNotEmpty)
+                            TextButton.icon(
+                              onPressed: _clearCart,
+                              icon: const Icon(Icons.delete_outline, size: 18),
+                              label: const Text('Vider'),
+                            ),
+                        ],
+                      ),
+                      const Divider(),
+                      Expanded(
+                        child: _cart.isEmpty
+                            ? const Center(
+                                child: Text('Aucun article dans le panier'),
+                              )
+                            : ListView.builder(
+                                itemCount: _cart.length,
+                                itemBuilder: (context, index) {
+                                  final item = _cart[index];
+
+                                  return Padding(
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 6),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                item.product.name,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodyLarge,
+                                              ),
+                                              Text(
+                                                '${item.product.price.toStringAsFixed(2)} € × ${item.quantity}',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodyMedium,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Row(
+                                          children: [
+                                            IconButton(
+                                              onPressed: () =>
+                                                  _updateQuantity(index, -1),
+                                              icon: const Icon(Icons.remove,
+                                                  size: 18),
+                                            ),
+                                            Text(
+                                              item.quantity.toString(),
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodyLarge,
+                                            ),
+                                            IconButton(
+                                              onPressed: item.quantity <
+                                                      item.product.stock
+                                                  ? () =>
+                                                      _updateQuantity(index, 1)
+                                                  : null,
+                                              icon: const Icon(Icons.add,
+                                                  size: 18),
+                                            ),
+                                          ],
+                                        ),
+                                        SizedBox(
+                                          width: 80,
+                                          child: Text(
+                                            '${item.subtotal.toStringAsFixed(2)} €',
+                                            textAlign: TextAlign.right,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyLarge,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                      const Divider(),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Total',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            Text(
+                              '${_total.toStringAsFixed(2)} €',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleLarge
+                                  ?.copyWith(
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _cart.isEmpty || _isCheckingOut
+                              ? null
+                              : _checkout,
+                          icon: _isCheckingOut
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.payment),
+                          label: Text(
+                            _isCheckingOut ? 'Encaissement...' : 'Encaisser',
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
