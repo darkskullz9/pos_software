@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:flutter/services.dart' show rootBundle;
 
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -6,8 +7,16 @@ import 'package:pdf/widgets.dart' as pw;
 import '../models/label_item_model.dart';
 
 class LabelPdfService {
-  Future<Uint8List> generatLabelsPdf(List<LabelItemModel> items) async {
+  Future<Uint8List> generateLabelsPdf(List<LabelItemModel> items) async {
     final pdf = pw.Document();
+
+    final fontRegular = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/Roboto-Regular.ttf'),
+    );
+
+    final fontBold = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/Roboto-Bold.ttf'),
+    );
 
     final labels = <LabelItemModel>[];
     for(final item in items) {
@@ -32,10 +41,11 @@ class LabelPdfService {
               runSpacing: 12,
               children: labels.map((item) {
                 final product = item.product;
+                final barcodeValue = (product.barcode ?? '').trim();
 
                 return pw.Container(
                   width: 165,
-                  height: 100,
+                  height: 110,
                   padding: const pw.EdgeInsets.all(8),
                   decoration: pw.BoxDecoration(
                     border: pw.Border.all(color: PdfColors.grey700),
@@ -50,14 +60,45 @@ class LabelPdfService {
                         maxLines: 2,
                         style: pw.TextStyle(
                           fontSize: 10,
-                          fontWeight: pw.FontWeight.bold,
+                          font: fontBold,
                         ),
                       ),
 
                       pw.Text(
                         '${product.price.toStringAsFixed(2)} €',
-                        style: const pw.TextStyle(fontSize: 8),
+                        style: pw.TextStyle(
+                          fontSize: 9,
+                          font: fontRegular,
+                        ),
                       ),
+
+                      pw.SizedBox(height: 4),
+                      if(barcodeValue.isNotEmpty) 
+                        pw.Center(
+                          child: pw.BarcodeWidget(
+                            barcode: pw.Barcode.code128(),
+                            data: barcodeValue,
+                            width: 140,
+                            height: 32,
+                            drawText: true,
+                            textStyle: pw.TextStyle(
+                              fontSize: 8,
+                              font: fontRegular
+                            ),
+                          ),
+                        ) 
+                      else
+                        pw.Container(
+                          alignment: pw.Alignment.center,
+                          height: 32,
+                          child: pw.Text(
+                            'Code-barres indisponible',
+                            style: pw.TextStyle(
+                              fontSize: 8,
+                              font: fontRegular
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 );

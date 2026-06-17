@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
 
+import '../../data/models/label_item_model.dart';
 import '../../data/models/product_model.dart';
+import '../../data/services/label_pdf_service.dart';
 import '../../data/services/product_service.dart';
 
 class ProductsPage extends StatefulWidget {
@@ -22,8 +25,10 @@ class _ProductsPageState extends State<ProductsPage> {
   final _priceController = TextEditingController();
   final _stockController = TextEditingController();
   final _barcodeController = TextEditingController();
+  final _labelQuantityController = TextEditingController(text: '1');
 
   late final ProductService _productService = widget.productService;
+  final LabelPdfService _labelPdfService = LabelPdfService();
 
   int? _editingIndex;
 
@@ -31,12 +36,15 @@ class _ProductsPageState extends State<ProductsPage> {
   int _selectedColorCode = 1;
   int _selectedSizeCode = 3;
 
+  final Set<int> _selectedRows = {};
+
   @override
   void dispose() {
     _nameController.dispose();
     _priceController.dispose();
     _stockController.dispose();
     _barcodeController.dispose();
+    _labelQuantityController.dispose();
     super.dispose();
   }
 
@@ -74,18 +82,30 @@ class _ProductsPageState extends State<ProductsPage> {
   void _deleteProduct(int index) {
     setState(() {
       _productService.deleteProduct(index);
+      _selectedRows.remove(index);
 
       if(_editingIndex == index) {
         _resetForm();
       } else if(_editingIndex != null && _editingIndex! > index) {
         _editingIndex = _editingIndex! - 1;
       }
+
+      final updated = <int>{};
+      for (final selectedIndex in _selectedRows) {
+        if (selectedIndex > index) {
+          updated.add(selectedIndex - 1);
+        } else if (selectedIndex < index) {
+          updated.add(selectedIndex);
+        }
+      }
+
+      _selectedRows
+        ..clear()
+        ..addAll(updated);
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Produit supprimé')
-      ),
+      const SnackBar(content: Text('Produit supprimé')),
     );
   }
 
@@ -115,9 +135,7 @@ class _ProductsPageState extends State<ProductsPage> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message)
-      ),
+      SnackBar(content: Text(message)),
     );
   }
 
@@ -160,6 +178,43 @@ class _ProductsPageState extends State<ProductsPage> {
       default:
         return '-';
     }
+  }
+
+  Future<void> _generateLabelsPdf() async {
+    if (_selectedRows.isEmpty) return;
+
+    final quantity = int.tryParse(_labelQuantityController.text.trim()) ?? 1;
+    if (quantity <= 0) return;
+
+    final selectedProducts = _selectedRows
+        .toList()
+      ..sort();
+
+    final items = selectedProducts.map((index) {
+      final product = _productService.products[index];
+      return LabelItemModel(
+        product: product,
+        quantity: quantity,
+      );
+    }).toList();
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: 900,
+            height: 700,
+            child: PdfPreview(
+              build: (format) => _labelPdfService.generateLabelsPdf(items),
+              allowPrinting: true,
+              allowSharing: true,
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -382,6 +437,38 @@ class _ProductsPageState extends State<ProductsPage> {
         ),
 
         const SizedBox(height: 20),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 220,
+                  child: TextFormField(
+                    controller: _labelQuantityController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Qté étiquettes / produit',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton.icon(
+                  onPressed: _selectedRows.isEmpty ? null : _generateLabelsPdf,
+                  icon: const Icon(Icons.picture_as_pdf),
+                  label: const Text('Générer les étiquettes PDF'),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  '${_selectedRows.length} produit(s) sélectionné(s)',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 20),
         Expanded(
           child: Card(
             child: Padding(
@@ -407,8 +494,20 @@ class _ProductsPageState extends State<ProductsPage> {
                     rows: products.asMap().entries.map((entry) {
                       final index = entry.key;
                       final product = entry.value;
+                      final isSelected = _selectedRows.contains(index);
 
                       return DataRow(
+                        selected: isSelected,
+                        onSelectChanged: (selected) {
+                          setState(() {
+                            if (selected ?? false) {
+                              _selectedRows.add(index);
+                            } else {
+                              _selectedRows.remove(index);
+                            }
+                          });
+                        },
+                        
                         color: WidgetStateProperty.resolveWith<Color?>(
                           (states) => _editingIndex == index 
                             ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
