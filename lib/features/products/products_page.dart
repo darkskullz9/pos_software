@@ -371,7 +371,7 @@ class _ProductsPageState extends State<ProductsPage> {
                                 children: [
                                   Expanded(
                                     child: DropdownButtonFormField<int>(
-                                      value: _selectedCategoryCode,
+                                      initialValue: _selectedCategoryCode,
                                       decoration: const InputDecoration(
                                         labelText: 'Catégorie',
                                       ),
@@ -392,7 +392,7 @@ class _ProductsPageState extends State<ProductsPage> {
                                   const SizedBox(width: 16),
                                   Expanded(
                                     child: DropdownButtonFormField<int?>(
-                                      value: _selectedColorCode,
+                                      initialValue: _selectedColorCode,
                                       decoration: const InputDecoration(
                                         labelText: 'Couleur (optionnel)',
                                       ),
@@ -430,7 +430,7 @@ class _ProductsPageState extends State<ProductsPage> {
                                   const SizedBox(width: 16),
                                   Expanded(
                                     child: DropdownButtonFormField<int?>(
-                                      value: _selectedSizeCode,
+                                      initialValue: _selectedSizeCode,
                                       decoration: const InputDecoration(
                                         labelText: 'Taille (optionnel)',
                                       ),
