@@ -22,7 +22,6 @@ class PosPage extends StatefulWidget {
 class _PosPageState extends State<PosPage> {
   late final ProductService _productService;
   late final SettingsService _settingsService;
-
   late String _selectedPaymentMethod;
 
   final TextEditingController _barcodeController = TextEditingController();
@@ -57,7 +56,6 @@ class _PosPageState extends State<PosPage> {
   @override
   void dispose() {
     _settingsService.removeListener(_onSettingsChanged);
-
     _barcodeController.dispose();
     _searchController.dispose();
     _barcodeFocusNode.dispose();
@@ -74,6 +72,41 @@ class _PosPageState extends State<PosPage> {
   bool _canAddProduct(ProductModel product) {
     if (!_settingsService.settings.preventNegativeStock) return true;
     return _quantityInCart(product) < product.stock;
+  }
+
+  bool _hasStockIssue() {
+    final settings = _settingsService.settings;
+
+    if (!settings.preventNegativeStock) {
+      return false;
+    }
+
+    for (final item in _cart) {
+      if (item.quantity > item.product.stock) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  void _showStockIssueMessage() {
+    final stockIssues = _cart.where(
+      (item) => item.quantity > item.product.stock,
+    );
+
+    final message = stockIssues.map((item) {
+      return '${item.product.name} : demandé ${item.quantity}, disponible ${item.product.stock}';
+    }).join('\n');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Stock insuffisant :\n$message'),
+        backgroundColor: Colors.red,
+      ),
+    );
+
+    _barcodeFocusNode.requestFocus();
   }
 
   void _syncCartCount() {
@@ -329,20 +362,115 @@ class _PosPageState extends State<PosPage> {
   Future<void> _processCheckout() async {
     if (_isCheckingOut) return;
 
+    if (settings.confirmBeforeCheckout) {
+      final paymentMethod = await _showCheckoutDialog();
+
+      if (!mounted) return;
+
+      if (paymentMethod == null) {
+        _barcodeFocusNode.requestFocus();
+        return;
+      }
+
+      _selectedPaymentMethod = paymentMethod;
+    }
+
+    await _processCheckout();
+  }
+
+  Future<String?> _showCheckoutDialog() {
+    return showDialog<String>(
+      context: context,
+      builder: (context) {
+        String dialogPaymentMethod = _selectedPaymentMethod;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Confirmer l\'encaissement'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Total : ${_total.toStringAsFixed(2)} €',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: dialogPaymentMethod,
+                    decoration: const InputDecoration(
+                      labelText: 'Moyen de paiement',
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Carte bancaire',
+                        child: Text('Carte bancaire'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Espèces',
+                        child: Text('Espèces'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Virement',
+                        child: Text('Virement'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Autre',
+                        child: Text('Autre'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+
+                      setDialogState(() {
+                        dialogPaymentMethod = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Confirmer la vente ?'),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(dialogPaymentMethod);
+                  },
+                  child: const Text('Confirmer'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _processCheckout() async {
     setState(() {
       _isCheckingOut = true;
     });
 
     try {
       final saleTotal = _total;
+      final settings = _settingsService.settings;
 
       for (final item in _cart) {
-        if (item.product.id != null) {
-          await _productService.decrementStock(
-            item.product.id!,
-            item.quantity,
-          );
-        }
+        final productId = item.product.id;
+
+        if (productId == null) continue;
+
+        await _productService.decrementStock(
+          productId,
+          item.quantity,
+          allowNegativeStock: !settings.preventNegativeStock,
+        );
       }
 
       _productService.addSale(saleTotal);
@@ -445,7 +573,8 @@ class _PosPageState extends State<PosPage> {
                               return Card(
                                 clipBehavior: Clip.antiAlias,
                                 child: InkWell(
-                                  onTap: canAdd ? () => _addToCart(product) : null,
+                                  onTap:
+                                      canAdd ? () => _addToCart(product) : null,
                                   child: Opacity(
                                     opacity: canAdd ? 1 : 0.5,
                                     child: Padding(
@@ -617,6 +746,10 @@ class _PosPageState extends State<PosPage> {
                           ],
                         ),
                       ),
+<<<<<<< HEAD
+=======
+
+>>>>>>> 363fa12 (Apply settings to POS checkout)
                       DropdownButtonFormField<String>(
                         initialValue: _selectedPaymentMethod,
                         decoration: const InputDecoration(
