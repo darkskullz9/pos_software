@@ -104,13 +104,18 @@ class ProductService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> decrementStock(int productId, int quantity) async {
+  Future<void> decrementStock(
+    int productId,
+    int quantity, {
+    bool allowNegativeStock = false,
+  }) async {
     final index = _products.indexWhere((p) => p.id == productId);
     if (index == -1) return;
 
     final product = _products[index];
+    final newStock = product.stock - quantity;
     final updated = product.copyWith(
-      stock: (product.stock - quantity).clamp(0, product.stock).toInt(),
+      stock: allowNegativeStock ? newStock : (newStock < 0 ? 0 : newStock),
     );
 
     await _databaseService.updateProduct(updated);
