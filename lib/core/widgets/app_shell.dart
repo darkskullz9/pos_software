@@ -87,7 +87,6 @@ class _AppShellState extends State<AppShell> {
                           productService: widget.productService,
                           settingsService: widget.settingsService,
                         ),
-
                         BarcodePage(productService: widget.productService),
                         
                         SettingsPage(
