@@ -78,7 +78,10 @@ class _AppShellState extends State<AppShell> {
                       children: [
                         DashboardPage(productService: widget.productService),
                         ProductsPage(productService: widget.productService),
-                        PosPage(productService: widget.productService),
+                        PosPage(
+                          productService: widget.productService,
+                          settingsService: widget.settingsService,
+                        ),
                         BarcodePage(productService: widget.productService),
                         SettingsPage(
                           settingsService: widget.settingsService,
