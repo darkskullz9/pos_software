@@ -106,6 +106,91 @@ class _ProductsPageState extends State<ProductsPage> {
     ).showSnackBar(const SnackBar(content: Text('Produit supprimé')));
   }
 
+  Future<void> _deleteSelectedProducts() async {
+    if (_selectedRows.isEmpty) return;
+
+    final selectedIds = Set<int>.from(_selectedRows);
+
+    final selectedProducts = _productService.products
+        .where(
+          (product) => product.id != null && selectedIds.contains(product.id),
+        )
+        .toList();
+
+    if (selectedProducts.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Supprimer la sélection'),
+          content: Text(
+            'Voulez-vous vraiment supprimer ${selectedProducts.length} produit(s) ?\n\n'
+            'Cette action est irréversible.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(context).pop(true),
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Supprimer'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    for (final product in selectedProducts) {
+      if (product.id == null) continue;
+      await _productService.deleteProduct(product.id!);
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _selectedRows.clear();
+
+      if (_editingProductId != null &&
+          selectedIds.contains(_editingProductId)) {
+        _resetForm();
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${selectedProducts.length} produit(s) supprimé(s)'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _selectAllProducts(List<ProductModel> products) {
+    setState(() {
+      _selectedRows
+        ..clear()
+        ..addAll(
+          products
+              .where((product) => product.id != null)
+              .map((product) => product.id!),
+        );
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectedRows.clear();
+    });
+  }
+
   Future<void> _submitProduct() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -543,6 +628,23 @@ class _ProductsPageState extends State<ProductsPage> {
                                 ),
                               ),
                             ),
+
+                            ElevatedButton.icon(
+                              onPressed: products.isEmpty
+                                  ? null
+                                  : () => _selectAllProducts(products),
+                              icon: const Icon(Icons.select_all),
+                              label: const Text('Tout sélectionner'),
+                            ),
+
+                            OutlinedButton.icon(
+                              onPressed: _selectedRows.isEmpty
+                                  ? null
+                                  : _clearSelection,
+                              icon: const Icon(Icons.clear),
+                              label: const Text('Désélectionner'),
+                            ),
+
                             ElevatedButton.icon(
                               onPressed: _selectedRows.isEmpty
                                   ? null
@@ -550,6 +652,19 @@ class _ProductsPageState extends State<ProductsPage> {
                               icon: const Icon(Icons.picture_as_pdf),
                               label: const Text('Générer les étiquettes PDF'),
                             ),
+
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                              ),
+                              onPressed: _selectedRows.isEmpty
+                                  ? null
+                                  : _deleteSelectedProducts,
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Supprimer la sélection'),
+                            ),
+
                             Text(
                               '${_selectedRows.length} produit(s) sélectionné(s)',
                               style: Theme.of(context).textTheme.bodyMedium,
@@ -586,6 +701,13 @@ class _ProductsPageState extends State<ProductsPage> {
                                             ),
                                             child: DataTable(
                                               showCheckboxColumn: true,
+                                              onSelectAll: (selected) {
+                                                if (selected ?? false) {
+                                                  _selectAllProducts(products);
+                                                } else {
+                                                  _clearSelection();
+                                                }
+                                              },
                                               columns: const [
                                                 DataColumn(label: Text('Nom')),
                                                 DataColumn(
