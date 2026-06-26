@@ -11,9 +11,10 @@ class DatabaseService {
   static Database? _database;
 
   static const String _databaseName = 'inventory.db';
-  static const int _databaseVersion = 1;
+  static const int _databaseVersion = 2;
 
   static const String productsTable = 'products';
+  static const String settingsTable = 'settings';
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -29,6 +30,7 @@ class DatabaseService {
       path,
       version: _databaseVersion,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -46,6 +48,51 @@ class DatabaseService {
         size_code INTEGER
       )
     ''');
+
+    await _createSettingsTable(db);
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await _createSettingsTable(db);
+    }
+  }
+
+  Future<void> _createSettingsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $settingsTable (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<Map<String, String>> getSettings() async {
+    final db = await database;
+    final maps = await db.query(settingsTable);
+
+    return {
+      for (final item in maps) item['key'] as String: item['value'] as String,
+    };
+  }
+
+  Future<void> saveSettings(Map<String, String> settings) async {
+    final db = await database;
+
+    final batch = db.batch();
+
+    for (final entry in settings.entries) {
+      batch.insert(
+        settingsTable,
+        {
+          'key': entry.key,
+          'value': entry.value,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+
+    await batch.commit(noResult: true);
   }
 
   Future<int> insertProduct(ProductModel product) async {
