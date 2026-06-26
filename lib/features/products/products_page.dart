@@ -266,6 +266,8 @@ class _ProductsPageState extends State<ProductsPage> {
                                             MaterialPageRoute(
                                               builder: (context) {
                                                 return ProductImportPage(
+                                                  productService:
+                                                      widget.productService,
                                                   settingsService:
                                                       widget.settingsService,
                                                 );
