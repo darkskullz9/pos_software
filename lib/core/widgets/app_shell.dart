@@ -77,12 +77,19 @@ class _AppShellState extends State<AppShell> {
                       index: selectedIndex,
                       children: [
                         DashboardPage(productService: widget.productService),
-                        ProductsPage(productService: widget.productService),
+
+                        ProductsPage(
+                          productService: widget.productService,
+                          settingsService: widget.settingsService,
+                        ),
+
                         PosPage(
                           productService: widget.productService,
                           settingsService: widget.settingsService,
                         ),
+
                         BarcodePage(productService: widget.productService),
+                        
                         SettingsPage(
                           settingsService: widget.settingsService,
                         ),
