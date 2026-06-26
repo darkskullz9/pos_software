@@ -107,6 +107,7 @@ class _StringListEditorState extends State<StringListEditor> {
                 onSubmitted: (_) => _addValue(),
               ),
             ),
+
             const SizedBox(width: 12),
             ElevatedButton.icon(
               onPressed: _addValue,
@@ -115,21 +116,30 @@ class _StringListEditorState extends State<StringListEditor> {
             ),
           ],
         ),
+
         const SizedBox(height: 12),
         if (_values.isEmpty)
           const Text('Aucune valeur configurée')
         else
-          ExcludeSemantics(
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _values.map((value) {
-                return InputChip(
-                  key: ValueKey(value),
-                  label: Text(value),
-                  onDeleted: () => _removeValue(value),
+          SizedBox(
+            height: 220,
+            child: ListView.builder(
+              itemCount: _values.length,
+              itemBuilder: (context, index) {
+                final value = _values[index];
+
+                return ListTile(
+                  key: ValueKey('${widget.title}-$value'),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(value),
+                  trailing: IconButton(
+                    tooltip: 'Supprimer',
+                    icon: const Icon(Icons.close),
+                    onPressed: () => _removeValue(value),
+                  ),
                 );
-              }).toList(),
+              },
             ),
           ),
       ],
