@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../../../data/models/product_model.dart';
+import '../../../data/services/product_service.dart';
 import '../../../data/services/settings_service.dart';
 import 'product_import_draft.dart';
 import 'product_import_parser.dart';
 
 class ProductImportPage extends StatefulWidget {
+  final ProductService productService;
   final SettingsService settingsService;
 
   const ProductImportPage({
     super.key,
+    required this.productService,
     required this.settingsService,
   });
 
@@ -24,6 +28,8 @@ class _ProductImportPageState extends State<ProductImportPage> {
   final Set<int> _selectedIndexes = {};
 
   String _selectedBulkSize = 'Non renseignée';
+
+  bool _isImporting = false;
 
   @override
   void dispose() {
@@ -50,9 +56,7 @@ class _ProductImportPageState extends State<ProductImportPage> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${drafts.length} produit(s) détecté(s)'),
-      ),
+      SnackBar(content: Text('${drafts.length} produit(s) détecté(s)')),
     );
   }
 
@@ -138,10 +142,117 @@ class _ProductImportPageState extends State<ProductImportPage> {
   }
 
   int get _totalStock {
-    return _drafts.fold<int>(
-      0,
-      (total, draft) => total + draft.stock,
+    return _drafts.fold<int>(0, (total, draft) => total + draft.stock);
+  }
+
+  int? _colorCodeFromText(String color) {
+    final normalized = color.toLowerCase().trim();
+
+    if (normalized.contains('noir')) return 1;
+    if (normalized.contains('blanc')) return 2;
+    if (normalized.contains('bleu')) return 3;
+    if (normalized.contains('rouge')) return 4;
+    if (normalized.contains('gris')) return 5;
+
+    return null;
+  }
+
+  int? _sizeCodeFromText(String size) {
+    final normalized = size.toUpperCase().trim();
+
+    switch (normalized) {
+      case 'XS':
+        return 1;
+      case 'S':
+        return 2;
+      case 'M':
+        return 3;
+      case 'L':
+        return 4;
+      case 'XL':
+        return 5;
+      default:
+        return null;
+    }
+  }
+
+  ProductModel _draftToProduct(ProductImportDraft draft) {
+    return ProductModel(
+      name: draft.name,
+      brand: draft.brand == 'Sans marque' ? null : draft.brand,
+      price: draft.price,
+      stock: draft.stock,
+      barcode: null,
+      categoryCode: 10,
+      colorCode: _colorCodeFromText(draft.color),
+      sizeCode: _sizeCodeFromText(draft.size),
     );
+  }
+
+  Future<void> _importDrafts() async {
+    if (_drafts.isEmpty || _isImporting) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Importer les produits'),
+          content: Text(
+            'Importer ${_drafts.length} produit(s) dans l’inventaire ?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.of(context).pop(true),
+              icon: const Icon(Icons.upload_file),
+              label: const Text('Importer'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    setState(() {
+      _isImporting = true;
+    });
+
+    try {
+      for (final draft in _drafts) {
+        final product = _draftToProduct(draft);
+        await widget.productService.addProduct(product);
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${_drafts.length} produit(s) importé(s)'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      Navigator.of(context).pop();
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur pendant l’import : $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isImporting = false;
+        });
+      }
+    }
   }
 
   @override
@@ -149,22 +260,15 @@ class _ProductImportPageState extends State<ProductImportPage> {
     final settings = widget.settingsService.settings;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Import rapide'),
-      ),
+      appBar: AppBar(title: const Text('Import rapide')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 420,
-              child: _buildInputPanel(),
-            ),
+            SizedBox(width: 420, child: _buildInputPanel()),
             const SizedBox(width: 16),
-            Expanded(
-              child: _buildPreviewPanel(settings.sizes),
-            ),
+            Expanded(child: _buildPreviewPanel(settings.sizes)),
           ],
         ),
       ),
@@ -175,10 +279,7 @@ class _ProductImportPageState extends State<ProductImportPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Liste brute',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
+        Text('Liste brute', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
         Expanded(
           child: TextField(
@@ -217,9 +318,7 @@ class _ProductImportPageState extends State<ProductImportPage> {
 
   Widget _buildPreviewPanel(List<String> availableSizes) {
     if (_drafts.isEmpty) {
-      return const Center(
-        child: Text('Aucun produit analysé pour le moment.'),
-      );
+      return const Center(child: Text('Aucun produit analysé pour le moment.'));
     }
 
     final allSelected = _selectedIndexes.length == _drafts.length;
@@ -230,6 +329,8 @@ class _ProductImportPageState extends State<ProductImportPage> {
         _buildStats(),
         const SizedBox(height: 12),
         _buildBulkActions(availableSizes),
+        const SizedBox(height: 12),
+        _buildImportActions(),
         const SizedBox(height: 12),
         Expanded(
           child: Card(
@@ -306,18 +407,9 @@ class _ProductImportPageState extends State<ProductImportPage> {
       spacing: 12,
       runSpacing: 12,
       children: [
-        _statCard(
-          label: 'Produits détectés',
-          value: _drafts.length.toString(),
-        ),
-        _statCard(
-          label: 'Stock total',
-          value: _totalStock.toString(),
-        ),
-        _statCard(
-          label: 'À vérifier',
-          value: _reviewCount.toString(),
-        ),
+        _statCard(label: 'Produits détectés', value: _drafts.length.toString()),
+        _statCard(label: 'Stock total', value: _totalStock.toString()),
+        _statCard(label: 'À vérifier', value: _reviewCount.toString()),
         _statCard(
           label: 'Sélectionnés',
           value: _selectedIndexes.length.toString(),
@@ -326,25 +418,16 @@ class _ProductImportPageState extends State<ProductImportPage> {
     );
   }
 
-  Widget _statCard({
-    required String label,
-    required String value,
-  }) {
+  Widget _statCard({required String label, required String value}) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label),
             const SizedBox(height: 4),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text(value, style: Theme.of(context).textTheme.titleLarge),
           ],
         ),
       ),
@@ -375,10 +458,7 @@ class _ProductImportPageState extends State<ProductImportPage> {
                   border: OutlineInputBorder(),
                 ),
                 items: availableSizes.map((size) {
-                  return DropdownMenuItem(
-                    value: size,
-                    child: Text(size),
-                  );
+                  return DropdownMenuItem(value: size, child: Text(size));
                 }).toList(),
                 onChanged: (value) {
                   if (value == null) return;
@@ -411,6 +491,38 @@ class _ProductImportPageState extends State<ProductImportPage> {
               onPressed: _selectedIndexes.isEmpty ? null : _applyBulkPrice,
               icon: const Icon(Icons.euro),
               label: const Text('Appliquer prix'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImportActions() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Vérifie les produits avant import. Les lignes orange doivent idéalement être corrigées.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+            const SizedBox(width: 12),
+            ElevatedButton.icon(
+              onPressed: _drafts.isEmpty || _isImporting ? null : _importDrafts,
+              icon: _isImporting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.inventory),
+              label: Text(
+                _isImporting ? 'Import...' : 'Importer dans l’inventaire',
+              ),
             ),
           ],
         ),
