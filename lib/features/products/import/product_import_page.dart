@@ -145,6 +145,31 @@ class _ProductImportPageState extends State<ProductImportPage> {
     return _drafts.fold<int>(0, (total, draft) => total + draft.stock);
   }
 
+  List<ProductImportDraft> get _draftsToImport {
+    if (_selectedIndexes.isEmpty) {
+      return _drafts;
+    }
+
+    final sortedIndexes = _selectedIndexes.toList()..sort();
+
+    return sortedIndexes
+        .where((index) => index >= 0 && index < _drafts.length)
+        .map((index) => _drafts[index])
+        .toList();
+  }
+
+  int get _importCount {
+    return _draftsToImport.length;
+  }
+
+  int get _importStock {
+    return _draftsToImport.fold<int>(0, (total, draft) => total + draft.stock);
+  }
+
+  int get _importReviewCount {
+    return _draftsToImport.where((draft) => draft.needsReview).length;
+  }
+
   int? _colorCodeFromText(String color) {
     final normalized = color.toLowerCase().trim();
 
@@ -192,13 +217,26 @@ class _ProductImportPageState extends State<ProductImportPage> {
   Future<void> _importDrafts() async {
     if (_drafts.isEmpty || _isImporting) return;
 
+    final draftsToImport = _draftsToImport;
+
+    if (draftsToImport.isEmpty) return;
+
+    final isPartialImport = _selectedIndexes.isNotEmpty;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Importer les produits'),
+          title: Text(
+            isPartialImport
+                ? 'Importer la sélection'
+                : 'Importer tous les produits',
+          ),
           content: Text(
-            'Importer ${_drafts.length} produit(s) dans l’inventaire ?',
+            'Produits à importer : ${draftsToImport.length}\n'
+            'Stock total : $_importStock\n'
+            'Lignes à vérifier : $_importReviewCount\n\n'
+            '${isPartialImport ? 'Seules les lignes sélectionnées seront importées.' : 'Aucune ligne sélectionnée : toute la liste sera importée.'}',
           ),
           actions: [
             TextButton(
@@ -222,7 +260,7 @@ class _ProductImportPageState extends State<ProductImportPage> {
     });
 
     try {
-      for (final draft in _drafts) {
+      for (final draft in draftsToImport) {
         final product = _draftToProduct(draft);
         await widget.productService.addProduct(product);
       }
@@ -231,7 +269,7 @@ class _ProductImportPageState extends State<ProductImportPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${_drafts.length} produit(s) importé(s)'),
+          content: Text('${draftsToImport.length} produit(s) importé(s)'),
           backgroundColor: Colors.green,
         ),
       );
@@ -499,6 +537,8 @@ class _ProductImportPageState extends State<ProductImportPage> {
   }
 
   Widget _buildImportActions() {
+    final isPartialImport = _selectedIndexes.isNotEmpty;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -506,7 +546,9 @@ class _ProductImportPageState extends State<ProductImportPage> {
           children: [
             Expanded(
               child: Text(
-                'Vérifie les produits avant import. Les lignes orange doivent idéalement être corrigées.',
+                isPartialImport
+                    ? 'Import prévu : $_importCount produit(s) sélectionné(s), stock total $_importStock, $_importReviewCount ligne(s) à vérifier.'
+                    : 'Aucune ligne sélectionnée : l’import ajoutera toute la liste ($_importCount produit(s), stock total $_importStock).',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),
@@ -521,7 +563,11 @@ class _ProductImportPageState extends State<ProductImportPage> {
                     )
                   : const Icon(Icons.inventory),
               label: Text(
-                _isImporting ? 'Import...' : 'Importer dans l’inventaire',
+                _isImporting
+                    ? 'Import...'
+                    : isPartialImport
+                    ? 'Importer la sélection'
+                    : 'Importer toute la liste',
               ),
             ),
           ],
