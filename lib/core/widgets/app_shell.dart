@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/theme/app_colors.dart';
 import '../../data/services/barcode_service.dart';
 import '../../data/services/product_service.dart';
+import '../../data/services/settings_service.dart';
 import '../../features/barcode/barcode_page.dart';
 import '../../features/dashboard/dashboard_page.dart';
 import '../../features/pos/pos_page.dart';
@@ -13,11 +14,13 @@ import 'app_sidebar.dart';
 class AppShell extends StatefulWidget {
   final ProductService productService;
   final BarcodeService barcodeService;
+  final SettingsService settingsService;
 
   const AppShell({
     super.key,
     required this.productService,
     required this.barcodeService,
+    required this.settingsService,
   });
 
   @override
@@ -77,7 +80,9 @@ class _AppShellState extends State<AppShell> {
                         ProductsPage(productService: widget.productService),
                         PosPage(productService: widget.productService),
                         BarcodePage(productService: widget.productService),
-                        const SettingsPage(),
+                        SettingsPage(
+                          settingsService: widget.settingsService,
+                        ),
                       ],
                     ),
                   ),
