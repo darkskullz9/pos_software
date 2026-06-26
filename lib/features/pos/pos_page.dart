@@ -193,37 +193,141 @@ class _PosPageState extends State<PosPage> {
     return _cart.fold(0, (sum, item) => sum + item.subtotal);
   }
 
-  Future<void> _checkout() async {
+  bool _hasStockIssue() {
+    final settings = _settingsService.settings;
+
+    if (!settings.preventNegativeStock) {
+      return false;
+    }
+
+    for (final item in _cart) {
+      if (item.quantity > item.product.stock) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  void _showStockIssueMessage() {
+    final stockIssues = _cart.where(
+      (item) => item.quantity > item.product.stock,
+    );
+
+    final message = stockIssues.map((item) {
+      return '${item.product.name} : demandé ${item.quantity}, disponible ${item.product.stock}';
+    }).join('\n');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Stock insuffisant :\n$message'),
+        backgroundColor: Colors.red,
+      ),
+    );
+
+    _barcodeFocusNode.requestFocus();
+  }
+
+  void _checkout() {
     if (_cart.isEmpty || _isCheckingOut) return;
 
-    final confirmed = await showDialog<bool>(
+    final settings = _settingsService.settings;
+
+    if (_hasStockIssue()) {
+      _showStockIssueMessage();
+      return;
+    }
+
+    if (settings.confirmBeforeCheckout) {
+      _showCheckoutDialog();
+      return;
+    }
+
+    _processCheckout();
+  }
+
+  void _showCheckoutDialog() {
+    showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Confirmer l\'encaissement'),
-          content: Text(
-            'Total : ${_total.toStringAsFixed(2)} €\n'
-            'Paiement : $_selectedPaymentMethod\n\n'
-            'Confirmer la vente ?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Annuler'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Confirmer'),
-            ),
-          ],
+        String dialogPaymentMethod = _selectedPaymentMethod;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Confirmer l\'encaissement'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Total : ${_total.toStringAsFixed(2)} €',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: dialogPaymentMethod,
+                    decoration: const InputDecoration(
+                      labelText: 'Moyen de paiement',
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Carte bancaire',
+                        child: Text('Carte bancaire'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Espèces',
+                        child: Text('Espèces'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Virement',
+                        child: Text('Virement'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Autre',
+                        child: Text('Autre'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+
+                      setDialogState(() {
+                        dialogPaymentMethod = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Confirmer la vente ?'),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _barcodeFocusNode.requestFocus();
+                  },
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _selectedPaymentMethod = dialogPaymentMethod;
+                    });
+
+                    Navigator.of(context).pop();
+                    _processCheckout();
+                  },
+                  child: const Text('Confirmer'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
+  }
 
-    if (confirmed != true) {
-      _barcodeFocusNode.requestFocus();
-      return;
-    }
+  Future<void> _processCheckout() async {
+    if (_isCheckingOut) return;
 
     setState(() {
       _isCheckingOut = true;
@@ -252,8 +356,10 @@ class _PosPageState extends State<PosPage> {
       _syncCartCount();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vente enregistrée avec succès'),
+        SnackBar(
+          content: Text(
+            'Vente enregistrée avec succès - Paiement : $_selectedPaymentMethod',
+          ),
           backgroundColor: Colors.green,
         ),
       );
@@ -511,6 +617,38 @@ class _PosPageState extends State<PosPage> {
                           ],
                         ),
                       ),
+                      DropdownButtonFormField<String>(
+                        initialValue: _selectedPaymentMethod,
+                        decoration: const InputDecoration(
+                          labelText: 'Moyen de paiement',
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'Carte bancaire',
+                            child: Text('Carte bancaire'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Espèces',
+                            child: Text('Espèces'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Virement',
+                            child: Text('Virement'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Autre',
+                            child: Text('Autre'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() {
+                              _selectedPaymentMethod = value;
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
