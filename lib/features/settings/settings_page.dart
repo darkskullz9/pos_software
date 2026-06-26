@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../data/models/app_settings_model.dart';
 import '../../data/services/settings_service.dart';
 
-import '../../core/widgets/string_list_editor.dart';
+import 'widgets/string_list_editor.dart';
 
 class SettingsPage extends StatefulWidget {
   final SettingsService settingsService;
