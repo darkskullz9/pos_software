@@ -34,11 +34,22 @@ class BarcodeService {
 
     final store = storeCode.toString().padLeft(2, '0');
     final category = categoryCode.toString().padLeft(2, '0');
-    final color = (colorCode ?? 0).toString().padLeft(2, '0');
-    final size = (sizeCode ?? 0).toString().padLeft(2, '0');
-    final product = (productIndex + 1).toString().padLeft(2, '0');
+
+    final color = (colorCode ?? 0).clamp(0, 9).toString();
+    final size = (sizeCode ?? 0).clamp(0, 9).toString();
+
+    final productNumber = productIndex + 1;
+
+    if (productNumber > 9999) {
+      throw Exception(
+        'Le générateur de code-barres supporte 9999 produits max',
+      );
+    }
+
+    final product = productNumber.toString().padLeft(4, '0');
 
     final base12 = '$prefix$store$category$color$size$product';
+
     return generateEan13FromBase(base12);
   }
 }
