@@ -21,6 +21,9 @@ class PosPage extends StatefulWidget {
 
 class _PosPageState extends State<PosPage> {
   late final ProductService _productService;
+  late final SettingsService _settingsService;
+
+  late String _selectedPaymentMethod;
 
   final TextEditingController _barcodeController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
@@ -35,25 +38,41 @@ class _PosPageState extends State<PosPage> {
   @override
   void initState() {
     super.initState();
+
     _productService = widget.productService;
+    _settingsService = widget.settingsService;
+
+    _selectedPaymentMethod = _settingsService.settings.defaultPaymentMethod;
+
+    _settingsService.addListener(_onSettingsChanged);
     _productService.setCurrentCartCount(0);
+  }
+
+  void _onSettingsChanged() {
+    setState(() {
+      _selectedPaymentMethod = _settingsService.settings.defaultPaymentMethod;
+    });
   }
 
   @override
   void dispose() {
+    _settingsService.removeListener(_onSettingsChanged);
+
     _barcodeController.dispose();
     _searchController.dispose();
     _barcodeFocusNode.dispose();
+
     super.dispose();
   }
 
   int _quantityInCart(ProductModel product) {
-    final index = _cart.indexWhere((item) => item.product.id == product.id);
+    final index = _cart.indexWhere((item) => item.product.name == product.name);
     if (index == -1) return 0;
     return _cart[index].quantity;
   }
 
   bool _canAddProduct(ProductModel product) {
+    if (!_settingsService.settings.preventNegativeStock) return true;
     return _quantityInCart(product) < product.stock;
   }
 
@@ -63,24 +82,35 @@ class _PosPageState extends State<PosPage> {
   }
 
   void _addToCart(ProductModel product) {
-    if (!_canAddProduct(product)) {
+    final settings = _settingsService.settings;
+
+    final cartIndex = _cart.indexWhere(
+      (item) => item.product.name == product.name,
+    );
+
+    final currentQuantityInCart = cartIndex == -1
+        ? 0
+        : _cart[cartIndex].quantity;
+
+    final requestedQuantity = currentQuantityInCart + 1;
+
+    if (settings.preventNegativeStock && requestedQuantity > product.stock) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Stock insuffisant pour ${product.name}'),
-          backgroundColor: Colors.orange,
+          content: Text(
+            'Stock insuffisant pour ${product.name}. Stock disponible : ${product.stock}',
+          ),
+          backgroundColor: Colors.red,
         ),
       );
+
       _barcodeFocusNode.requestFocus();
       return;
     }
 
     setState(() {
-      final index = _cart.indexWhere(
-        (item) => item.product.id == product.id,
-      );
-
-      if (index != -1) {
-        _cart[index].quantity++;
+      if (cartIndex != -1) {
+        _cart[cartIndex].quantity++;
       } else {
         _cart.add(
           CartItemModel(
@@ -127,7 +157,9 @@ class _PosPageState extends State<PosPage> {
             orElse: () => item.product,
           );
 
-    if (delta > 0 && item.quantity >= latestProduct.stock) {
+    if (_settingsService.settings.preventNegativeStock &&
+        delta > 0 &&
+        item.quantity >= latestProduct.stock) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Stock maximum atteint pour ${item.product.name}'),
@@ -170,7 +202,9 @@ class _PosPageState extends State<PosPage> {
         return AlertDialog(
           title: const Text('Confirmer l\'encaissement'),
           content: Text(
-            'Total : ${_total.toStringAsFixed(2)} €\n\nConfirmer la vente ?',
+            'Total : ${_total.toStringAsFixed(2)} €\n'
+            'Paiement : $_selectedPaymentMethod\n\n'
+            'Confirmer la vente ?',
           ),
           actions: [
             TextButton(
@@ -425,8 +459,11 @@ class _PosPageState extends State<PosPage> {
                                                   .bodyLarge,
                                             ),
                                             IconButton(
-                                              onPressed: item.quantity <
-                                                      item.product.stock
+                                              onPressed: !_settingsService
+                                                          .settings
+                                                          .preventNegativeStock ||
+                                                      item.quantity <
+                                                          item.product.stock
                                                   ? () =>
                                                       _updateQuantity(index, 1)
                                                   : null,
