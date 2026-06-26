@@ -3,13 +3,12 @@ import 'package:flutter/material.dart';
 import '../../data/models/app_settings_model.dart';
 import '../../data/services/settings_service.dart';
 
+import '../../core/widgets/string_list_editor.dart';
+
 class SettingsPage extends StatefulWidget {
   final SettingsService settingsService;
 
-  const SettingsPage({
-    super.key,
-    required this.settingsService,
-  });
+  const SettingsPage({super.key, required this.settingsService});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -34,6 +33,13 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool _preventNegativeStock;
   late bool _autoGenerateBarcode;
 
+  late List<String> _productTypes;
+  late List<String> _subCategories;
+  late List<String> _brands;
+  late List<String> _colors;
+  late List<String> _sizes;
+  late List<String> _locations;
+
   @override
   void initState() {
     super.initState();
@@ -57,6 +63,13 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _loadFromService() {
     final settings = widget.settingsService.settings;
+
+    _productTypes = List<String>.from(settings.productTypes);
+    _subCategories = List<String>.from(settings.subCategories);
+    _brands = List<String>.from(settings.brands);
+    _colors = List<String>.from(settings.colors);
+    _sizes = List<String>.from(settings.sizes);
+    _locations = List<String>.from(settings.locations);
 
     _storeNameController.text = settings.storeName;
     _taxRateController.text = settings.defaultTaxRate.toString();
@@ -98,6 +111,12 @@ class _SettingsPageState extends State<SettingsPage> {
       receiptFooter: _receiptFooterController.text.trim(),
       barcodeFormat: _barcodeFormat,
       themeMode: _themeMode,
+      productTypes: _productTypes,
+      subCategories: _subCategories,
+      brands: _brands,
+      colors: _colors,
+      sizes: _sizes,
+      locations: _locations,
     );
 
     await widget.settingsService.saveSettings(settings);
@@ -141,19 +160,15 @@ class _SettingsPageState extends State<SettingsPage> {
 
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Paramètres réinitialisés'),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Paramètres réinitialisés')));
   }
 
   @override
   Widget build(BuildContext context) {
     if (widget.settingsService.isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     return Form(
@@ -165,9 +180,7 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               TextFormField(
                 controller: _storeNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nom du magasin',
-                ),
+                decoration: const InputDecoration(labelText: 'Nom du magasin'),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Le nom du magasin est obligatoire';
@@ -178,9 +191,7 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _currency,
-                decoration: const InputDecoration(
-                  labelText: 'Devise',
-                ),
+                decoration: const InputDecoration(labelText: 'Devise'),
                 items: const [
                   DropdownMenuItem(value: 'EUR', child: Text('EUR - Euro')),
                   DropdownMenuItem(value: 'USD', child: Text('USD - Dollar')),
@@ -229,18 +240,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     value: 'Carte bancaire',
                     child: Text('Carte bancaire'),
                   ),
-                  DropdownMenuItem(
-                    value: 'Espèces',
-                    child: Text('Espèces'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'Virement',
-                    child: Text('Virement'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'Autre',
-                    child: Text('Autre'),
-                  ),
+                  DropdownMenuItem(value: 'Espèces', child: Text('Espèces')),
+                  DropdownMenuItem(value: 'Virement', child: Text('Virement')),
+                  DropdownMenuItem(value: 'Autre', child: Text('Autre')),
                 ],
                 onChanged: (value) {
                   if (value != null) {
@@ -312,6 +314,71 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ],
           ),
+
+          _section(
+            title: 'Catalogue',
+            children: [
+              StringListEditor(
+                title: 'Types de produits',
+                values: _productTypes,
+                hintText: 'Ex : Blazer, Legging, Sac...',
+                onChanged: (values) {
+                  setState(() => _productTypes = values);
+                },
+              ),
+
+              const SizedBox(height: 20),
+              StringListEditor(
+                title: 'Sous-catégories',
+                values: _subCategories,
+                hintText: 'Ex : Chaussures, Accessoires cheveux...',
+                onChanged: (values) {
+                  setState(() => _subCategories = values);
+                },
+              ),
+
+              const SizedBox(height: 20),
+              StringListEditor(
+                title: 'Marques',
+                values: _brands,
+                hintText: 'Ex : Nike, Levi\'s, Mango...',
+                onChanged: (values) {
+                  setState(() => _brands = values);
+                },
+              ),
+
+              const SizedBox(height: 20),
+              StringListEditor(
+                title: 'Couleurs',
+                values: _colors,
+                hintText: 'Ex : kaki, doré, argenté...',
+                onChanged: (values) {
+                  setState(() => _colors = values);
+                },
+              ),
+
+              const SizedBox(height: 20),
+              StringListEditor(
+                title: 'Tailles',
+                values: _sizes,
+                hintText: 'Ex : 50, 52, 54...',
+                onChanged: (values) {
+                  setState(() => _sizes = values);
+                },
+              ),
+
+              const SizedBox(height: 20),
+              StringListEditor(
+                title: 'Emplacements',
+                values: _locations,
+                hintText: 'Ex : Bac 1, Portant gauche...',
+                onChanged: (values) {
+                  setState(() => _locations = values);
+                },
+              ),
+            ],
+          ),
+
           _section(
             title: 'Tickets & étiquettes',
             children: [
@@ -363,9 +430,7 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               DropdownButtonFormField<ThemeMode>(
                 initialValue: _themeMode,
-                decoration: const InputDecoration(
-                  labelText: 'Thème',
-                ),
+                decoration: const InputDecoration(labelText: 'Thème'),
                 items: const [
                   DropdownMenuItem(
                     value: ThemeMode.system,
@@ -409,10 +474,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _section({
-    required String title,
-    required List<Widget> children,
-  }) {
+  Widget _section({required String title, required List<Widget> children}) {
     return Card(
       margin: const EdgeInsets.only(bottom: 20),
       child: Padding(
