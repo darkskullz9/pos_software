@@ -3,13 +3,16 @@ import 'package:flutter/material.dart';
 import '../../data/models/cart_item_model.dart';
 import '../../data/models/product_model.dart';
 import '../../data/services/product_service.dart';
+import '../../data/services/settings_service.dart';
 
 class PosPage extends StatefulWidget {
   final ProductService productService;
+  final SettingsService settingsService;
 
   const PosPage({
     super.key,
     required this.productService,
+    required this.settingsService,
   });
 
   @override
