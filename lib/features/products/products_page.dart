@@ -5,13 +5,18 @@ import '../../data/models/label_item_model.dart';
 import '../../data/models/product_model.dart';
 import '../../data/services/label_pdf_service.dart';
 import '../../data/services/product_service.dart';
+import '../../data/services/settings_service.dart';
+
+import './import/product_import_page.dart';
 
 class ProductsPage extends StatefulWidget {
   final ProductService productService;
+  final SettingsService settingsService;
 
   const ProductsPage({
     super.key,
     required this.productService,
+    required this.settingsService,
   });
 
   @override
@@ -96,9 +101,9 @@ class _ProductsPageState extends State<ProductsPage> {
       }
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Produit supprimé')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Produit supprimé')));
   }
 
   Future<void> _submitProduct() async {
@@ -135,9 +140,9 @@ class _ProductsPageState extends State<ProductsPage> {
 
     setState(_resetForm);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _categoryLabel(int code) {
@@ -190,12 +195,10 @@ class _ProductsPageState extends State<ProductsPage> {
     if (quantity <= 0) return;
 
     final items = _productService.products
-        .where((product) =>
-            product.id != null && _selectedRows.contains(product.id))
-        .map((product) => LabelItemModel(
-              product: product,
-              quantity: quantity,
-            ))
+        .where(
+          (product) => product.id != null && _selectedRows.contains(product.id),
+        )
+        .map((product) => LabelItemModel(product: product, quantity: quantity))
         .toList();
 
     if (items.isEmpty) return;
@@ -250,17 +253,42 @@ class _ProductsPageState extends State<ProductsPage> {
                                     isEditing
                                         ? 'Modifier le produit'
                                         : 'Ajouter un produit',
-                                    style:
-                                        Theme.of(context).textTheme.titleLarge,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleLarge,
                                   ),
-                                  if (isEditing)
-                                    TextButton.icon(
-                                      onPressed: _cancelEditing,
-                                      icon: const Icon(Icons.close),
-                                      label: const Text('Annuler'),
-                                    ),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      ElevatedButton.icon(
+                                        onPressed: () {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (context) {
+                                                return ProductImportPage(
+                                                  settingsService:
+                                                      widget.settingsService,
+                                                );
+                                              },
+                                            ),
+                                          );
+                                        },
+                                        icon: const Icon(Icons.upload_file),
+                                        label: const Text('Import rapide'),
+                                      ),
+                                      if (isEditing) ...[
+                                        const SizedBox(width: 12),
+                                        TextButton.icon(
+                                          onPressed: _cancelEditing,
+                                          icon: const Icon(Icons.close),
+                                          label: const Text('Annuler'),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
                                 ],
                               ),
+
                               const SizedBox(height: 20),
                               Row(
                                 children: [
@@ -282,6 +310,7 @@ class _ProductsPageState extends State<ProductsPage> {
                                       },
                                     ),
                                   ),
+
                                   const SizedBox(width: 16),
                                   Expanded(
                                     child: TextFormField(
@@ -293,6 +322,7 @@ class _ProductsPageState extends State<ProductsPage> {
                                   ),
                                 ],
                               ),
+
                               const SizedBox(height: 16),
                               Row(
                                 children: [
@@ -304,8 +334,8 @@ class _ProductsPageState extends State<ProductsPage> {
                                       ),
                                       keyboardType:
                                           const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                      ),
+                                            decimal: true,
+                                          ),
                                       validator: (value) {
                                         if (value == null ||
                                             value.trim().isEmpty) {
@@ -328,6 +358,7 @@ class _ProductsPageState extends State<ProductsPage> {
                                       },
                                     ),
                                   ),
+
                                   const SizedBox(width: 16),
                                   Expanded(
                                     child: TextFormField(
@@ -342,8 +373,9 @@ class _ProductsPageState extends State<ProductsPage> {
                                           return 'Le stock est obligatoire';
                                         }
 
-                                        final parsed =
-                                            int.tryParse(value.trim());
+                                        final parsed = int.tryParse(
+                                          value.trim(),
+                                        );
 
                                         if (parsed == null) {
                                           return 'Stock invalide';
@@ -384,7 +416,8 @@ class _ProductsPageState extends State<ProductsPage> {
                                       onChanged: (value) {
                                         if (value != null) {
                                           setState(
-                                              () => _selectedCategoryCode = value);
+                                            () => _selectedCategoryCode = value,
+                                          );
                                         }
                                       },
                                     ),
@@ -423,7 +456,9 @@ class _ProductsPageState extends State<ProductsPage> {
                                         ),
                                       ],
                                       onChanged: (value) {
-                                        setState(() => _selectedColorCode = value);
+                                        setState(
+                                          () => _selectedColorCode = value,
+                                        );
                                       },
                                     ),
                                   ),
@@ -461,7 +496,9 @@ class _ProductsPageState extends State<ProductsPage> {
                                         ),
                                       ],
                                       onChanged: (value) {
-                                        setState(() => _selectedSizeCode = value);
+                                        setState(
+                                          () => _selectedSizeCode = value,
+                                        );
                                       },
                                     ),
                                   ),
@@ -472,8 +509,12 @@ class _ProductsPageState extends State<ProductsPage> {
                                 alignment: Alignment.centerRight,
                                 child: ElevatedButton.icon(
                                   onPressed: _submitProduct,
-                                  icon: Icon(isEditing ? Icons.save : Icons.add),
-                                  label: Text(isEditing ? 'Enregistrer' : 'Ajouter'),
+                                  icon: Icon(
+                                    isEditing ? Icons.save : Icons.add,
+                                  ),
+                                  label: Text(
+                                    isEditing ? 'Enregistrer' : 'Ajouter',
+                                  ),
                                 ),
                               ),
                             ],
@@ -501,8 +542,9 @@ class _ProductsPageState extends State<ProductsPage> {
                               ),
                             ),
                             ElevatedButton.icon(
-                              onPressed:
-                                  _selectedRows.isEmpty ? null : _generateLabelsPdf,
+                              onPressed: _selectedRows.isEmpty
+                                  ? null
+                                  : _generateLabelsPdf,
                               icon: const Icon(Icons.picture_as_pdf),
                               label: const Text('Générer les étiquettes PDF'),
                             ),
@@ -523,125 +565,184 @@ class _ProductsPageState extends State<ProductsPage> {
                           child: _productService.isLoading
                               ? const Center(child: CircularProgressIndicator())
                               : products.isEmpty
-                                  ? const Center(
-                                      child: Text(
-                                        'Aucun produit enregistré pour le moment',
-                                      ),
-                                    )
-                                  : LayoutBuilder(
-                                      builder: (context, constraints) {
-                                        return Scrollbar(
-                                          thumbVisibility: true,
-                                          child: SingleChildScrollView(
-                                            scrollDirection: Axis.vertical,
-                                            child: SingleChildScrollView(
-                                              scrollDirection: Axis.horizontal,
-                                              child: ConstrainedBox(
-                                                constraints: BoxConstraints(
-                                                  minWidth: constraints.maxWidth,
+                              ? const Center(
+                                  child: Text(
+                                    'Aucun produit enregistré pour le moment',
+                                  ),
+                                )
+                              : LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    return Scrollbar(
+                                      thumbVisibility: true,
+                                      child: SingleChildScrollView(
+                                        scrollDirection: Axis.vertical,
+                                        child: SingleChildScrollView(
+                                          scrollDirection: Axis.horizontal,
+                                          child: ConstrainedBox(
+                                            constraints: BoxConstraints(
+                                              minWidth: constraints.maxWidth,
+                                            ),
+                                            child: DataTable(
+                                              showCheckboxColumn: true,
+                                              columns: const [
+                                                DataColumn(label: Text('Nom')),
+                                                DataColumn(
+                                                  label: Text('Marque'),
                                                 ),
-                                                child: DataTable(
-                                                  showCheckboxColumn: true,
-                                                  columns: const [
-                                                    DataColumn(label: Text('Nom')),
-                                                    DataColumn(label: Text('Marque')),
-                                                    DataColumn(label: Text('Prix')),
-                                                    DataColumn(label: Text('Stock')),
-                                                    DataColumn(label: Text('Catégorie')),
-                                                    DataColumn(label: Text('Couleur')),
-                                                    DataColumn(label: Text('Taille')),
-                                                    DataColumn(label: Text('Code-barres')),
-                                                    DataColumn(label: Text('Actions')),
-                                                  ],
-                                                  rows: products.map((product) {
-                                                    final productId = product.id;
-                                                    final isSelected = productId != null &&
-                                                        _selectedRows.contains(productId);
+                                                DataColumn(label: Text('Prix')),
+                                                DataColumn(
+                                                  label: Text('Stock'),
+                                                ),
+                                                DataColumn(
+                                                  label: Text('Catégorie'),
+                                                ),
+                                                DataColumn(
+                                                  label: Text('Couleur'),
+                                                ),
+                                                DataColumn(
+                                                  label: Text('Taille'),
+                                                ),
+                                                DataColumn(
+                                                  label: Text('Code-barres'),
+                                                ),
+                                                DataColumn(
+                                                  label: Text('Actions'),
+                                                ),
+                                              ],
+                                              rows: products.map((product) {
+                                                final productId = product.id;
+                                                final isSelected =
+                                                    productId != null &&
+                                                    _selectedRows.contains(
+                                                      productId,
+                                                    );
 
-                                                    return DataRow(
-                                                      selected: isSelected,
-                                                      onSelectChanged: productId == null
-                                                          ? null
-                                                          : (selected) {
-                                                              setState(() {
-                                                                if (selected ?? false) {
-                                                                  _selectedRows.add(productId);
-                                                                } else {
-                                                                  _selectedRows.remove(productId);
-                                                                }
-                                                              });
-                                                            },
-                                                      color: WidgetStateProperty.resolveWith<Color?>(
-                                                        (states) => _editingProductId ==
+                                                return DataRow(
+                                                  selected: isSelected,
+                                                  onSelectChanged:
+                                                      productId == null
+                                                      ? null
+                                                      : (selected) {
+                                                          setState(() {
+                                                            if (selected ??
+                                                                false) {
+                                                              _selectedRows.add(
+                                                                productId,
+                                                              );
+                                                            } else {
+                                                              _selectedRows
+                                                                  .remove(
+                                                                    productId,
+                                                                  );
+                                                            }
+                                                          });
+                                                        },
+                                                  color:
+                                                      WidgetStateProperty.resolveWith<
+                                                        Color?
+                                                      >(
+                                                        (states) =>
+                                                            _editingProductId ==
                                                                 product.id
                                                             ? Theme.of(context)
-                                                                .colorScheme
-                                                                .primary
-                                                                .withValues(alpha: 0.08)
+                                                                  .colorScheme
+                                                                  .primary
+                                                                  .withValues(
+                                                                    alpha: 0.08,
+                                                                  )
                                                             : null,
                                                       ),
-                                                      cells: [
-                                                        DataCell(Text(product.name)),
-                                                        DataCell(Text(
-                                                          product.brand ?? 'Sans marque',
-                                                        )),
-                                                        DataCell(Text(
-                                                          '${product.price.toStringAsFixed(2)} €',
-                                                        )),
-                                                        DataCell(Text(
-                                                          product.stock.toString(),
-                                                        )),
-                                                        DataCell(Text(
-                                                          _categoryLabel(
-                                                            product.categoryCode,
-                                                          ),
-                                                        )),
-                                                        DataCell(Text(
-                                                          _colorLabel(product.colorCode),
-                                                        )),
-                                                        DataCell(Text(
-                                                          _sizeLabel(product.sizeCode),
-                                                        )),
-                                                        DataCell(Text(
-                                                          product.barcode ?? '-',
-                                                        )),
-                                                        DataCell(
-                                                          Row(
-                                                            mainAxisSize:
-                                                                MainAxisSize.min,
-                                                            children: [
-                                                              IconButton(
-                                                                icon: const Icon(
-                                                                  Icons.edit_outlined,
-                                                                  size: 20,
-                                                                ),
-                                                                tooltip: 'Modifier',
-                                                                onPressed: () =>
-                                                                    _startEditing(product),
-                                                              ),
-                                                              IconButton(
-                                                                icon: const Icon(
-                                                                  Icons.delete_outline,
-                                                                  size: 20,
-                                                                  color: Colors.red,
-                                                                ),
-                                                                tooltip: 'Supprimer',
-                                                                onPressed: () =>
-                                                                    _deleteProduct(product),
-                                                              ),
-                                                            ],
-                                                          ),
+                                                  cells: [
+                                                    DataCell(
+                                                      Text(product.name),
+                                                    ),
+                                                    DataCell(
+                                                      Text(
+                                                        product.brand ??
+                                                            'Sans marque',
+                                                      ),
+                                                    ),
+                                                    DataCell(
+                                                      Text(
+                                                        '${product.price.toStringAsFixed(2)} €',
+                                                      ),
+                                                    ),
+                                                    DataCell(
+                                                      Text(
+                                                        product.stock
+                                                            .toString(),
+                                                      ),
+                                                    ),
+                                                    DataCell(
+                                                      Text(
+                                                        _categoryLabel(
+                                                          product.categoryCode,
                                                         ),
-                                                      ],
-                                                    );
-                                                  }).toList(),
-                                                ),
-                                              ),
+                                                      ),
+                                                    ),
+                                                    DataCell(
+                                                      Text(
+                                                        _colorLabel(
+                                                          product.colorCode,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    DataCell(
+                                                      Text(
+                                                        _sizeLabel(
+                                                          product.sizeCode,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    DataCell(
+                                                      Text(
+                                                        product.barcode ?? '-',
+                                                      ),
+                                                    ),
+                                                    DataCell(
+                                                      Row(
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        children: [
+                                                          IconButton(
+                                                            icon: const Icon(
+                                                              Icons
+                                                                  .edit_outlined,
+                                                              size: 20,
+                                                            ),
+                                                            tooltip: 'Modifier',
+                                                            onPressed: () =>
+                                                                _startEditing(
+                                                                  product,
+                                                                ),
+                                                          ),
+                                                          IconButton(
+                                                            icon: const Icon(
+                                                              Icons
+                                                                  .delete_outline,
+                                                              size: 20,
+                                                              color: Colors.red,
+                                                            ),
+                                                            tooltip:
+                                                                'Supprimer',
+                                                            onPressed: () =>
+                                                                _deleteProduct(
+                                                                  product,
+                                                                ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                );
+                                              }).toList(),
                                             ),
                                           ),
-                                        );
-                                      },
-                                    ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
                         ),
                       ),
                     ),
