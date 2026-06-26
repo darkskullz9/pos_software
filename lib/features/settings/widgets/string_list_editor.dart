@@ -119,15 +119,18 @@ class _StringListEditorState extends State<StringListEditor> {
         if (_values.isEmpty)
           const Text('Aucune valeur configurée')
         else
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _values.map((value) {
-              return InputChip(
-                label: Text(value),
-                onDeleted: () => _removeValue(value),
-              );
-            }).toList(),
+          ExcludeSemantics(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _values.map((value) {
+                return InputChip(
+                  key: ValueKey(value),
+                  label: Text(value),
+                  onDeleted: () => _removeValue(value),
+                );
+              }).toList(),
+            ),
           ),
       ],
     );
