@@ -318,7 +318,8 @@ class AppSettingsModel {
       currency: currency ?? this.currency,
       defaultTaxRate: defaultTaxRate ?? this.defaultTaxRate,
       defaultPaymentMethod: defaultPaymentMethod ?? this.defaultPaymentMethod,
-      confirmBeforeCheckout:confirmBeforeCheckout ?? this.confirmBeforeCheckout,
+      confirmBeforeCheckout:
+          confirmBeforeCheckout ?? this.confirmBeforeCheckout,
       preventNegativeStock: preventNegativeStock ?? this.preventNegativeStock,
       lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
       autoGenerateBarcode: autoGenerateBarcode ?? this.autoGenerateBarcode,
@@ -366,14 +367,27 @@ class AppSettingsModel {
     return AppSettingsModel(
       storeName: map['storeName'] ?? defaults.storeName,
       currency: map['currency'] ?? defaults.currency,
-      defaultTaxRate: double.tryParse(map['defaultTaxRate'] ?? '') ?? defaults.defaultTaxRate,
-      defaultPaymentMethod: map['defaultPaymentMethod'] ?? defaults.defaultPaymentMethod,
-      confirmBeforeCheckout: _parseBool(map['confirmBeforeCheckout']) ?? defaults.confirmBeforeCheckout,
-      preventNegativeStock: _parseBool(map['preventNegativeStock']) ?? defaults.preventNegativeStock,
-      lowStockThreshold: int.tryParse(map['lowStockThreshold'] ?? '') ?? defaults.lowStockThreshold,
-      autoGenerateBarcode: _parseBool(map['autoGenerateBarcode']) ?? defaults.autoGenerateBarcode,
+      defaultTaxRate:
+          double.tryParse(map['defaultTaxRate'] ?? '') ??
+          defaults.defaultTaxRate,
+      defaultPaymentMethod:
+          map['defaultPaymentMethod'] ?? defaults.defaultPaymentMethod,
+      confirmBeforeCheckout:
+          _parseBool(map['confirmBeforeCheckout']) ??
+          defaults.confirmBeforeCheckout,
+      preventNegativeStock:
+          _parseBool(map['preventNegativeStock']) ??
+          defaults.preventNegativeStock,
+      lowStockThreshold:
+          int.tryParse(map['lowStockThreshold'] ?? '') ??
+          defaults.lowStockThreshold,
+      autoGenerateBarcode:
+          _parseBool(map['autoGenerateBarcode']) ??
+          defaults.autoGenerateBarcode,
       storeCode: int.tryParse(map['storeCode'] ?? '') ?? defaults.storeCode,
-      defaultLabelQuantity: int.tryParse(map['defaultLabelQuantity'] ?? '') ?? defaults.defaultLabelQuantity,
+      defaultLabelQuantity:
+          int.tryParse(map['defaultLabelQuantity'] ?? '') ??
+          defaults.defaultLabelQuantity,
       receiptFooter: map['receiptFooter'] ?? defaults.receiptFooter,
       barcodeFormat: map['barcodeFormat'] ?? defaults.barcodeFormat,
       themeMode: _parseThemeMode(map['themeMode']) ?? defaults.themeMode,
@@ -385,22 +399,10 @@ class AppSettingsModel {
         map['subCategories'],
         defaults.subCategories,
       ),
-      brands: _parseStringList(
-        map['brands'],
-        defaults.brands,
-      ),
-      colors: _parseStringList(
-        map['colors'],
-        defaults.colors,
-      ),
-      sizes: _parseStringList(
-        map['sizes'],
-        defaults.sizes,
-      ),
-      locations: _parseStringList(
-        map['locations'],
-        defaults.locations,
-      ),
+      brands: _parseStringList(map['brands'], defaults.brands),
+      colors: _parseStringList(map['colors'], defaults.colors),
+      sizes: _parseStringList(map['sizes'], defaults.sizes),
+      locations: _parseStringList(map['locations'], defaults.locations),
     );
   }
 
@@ -422,7 +424,7 @@ class AppSettingsModel {
     }
   }
 
-  static List<String> _parseStringList(String? value, List<String> fallback,) {
+  static List<String> _parseStringList(String? value, List<String> fallback) {
     if (value == null || value.trim().isEmpty) {
       return fallback;
     }
