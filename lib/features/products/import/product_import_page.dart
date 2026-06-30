@@ -145,15 +145,93 @@ class _ProductImportPageState extends State<ProductImportPage> {
     return _drafts.fold<int>(0, (total, draft) => total + draft.stock);
   }
 
-  List<ProductImportDraft> get _draftsToImport {
+  String _normalizeForDuplicate(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll('à', 'a')
+        .replaceAll('â', 'a')
+        .replaceAll('ä', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('è', 'e')
+        .replaceAll('ê', 'e')
+        .replaceAll('ë', 'e')
+        .replaceAll('î', 'i')
+        .replaceAll('ï', 'i')
+        .replaceAll('ô', 'o')
+        .replaceAll('ö', 'o')
+        .replaceAll('ù', 'u')
+        .replaceAll('û', 'u')
+        .replaceAll('ü', 'u')
+        .replaceAll('ç', 'c');
+  }
+
+  String _draftDuplicateKey(ProductImportDraft draft) {
+    final brand = draft.brand == 'Sans marque' ? '' : draft.brand;
+
+    return [
+      _normalizeForDuplicate(draft.name),
+      _normalizeForDuplicate(brand),
+      _colorCodeFromText(draft.color).toString(),
+      _sizeCodeFromText(draft.size).toString(),
+    ].join('|');
+  }
+
+  String _productDuplicateKey(ProductModel product) {
+    return [
+      _normalizeForDuplicate(product.name),
+      _normalizeForDuplicate(product.brand ?? ''),
+      (product.colorCode ?? 0).toString(),
+      (product.sizeCode ?? 0).toString(),
+    ].join('|');
+  }
+
+  Set<String> get _existingProductKeys {
+    return widget.productService.products.map(_productDuplicateKey).toSet();
+  }
+
+  List<int> get _draftIndexesToImport {
     if (_selectedIndexes.isEmpty) {
-      return _drafts;
+      return List<int>.generate(_drafts.length, (index) => index);
     }
 
     final sortedIndexes = _selectedIndexes.toList()..sort();
 
     return sortedIndexes
         .where((index) => index >= 0 && index < _drafts.length)
+        .toList();
+  }
+
+  List<ProductImportDraft> get _draftsToImport {
+    return _draftIndexesToImport.map((index) => _drafts[index]).toList();
+  }
+
+  Set<int> get _duplicateImportIndexes {
+    final existingKeys = _existingProductKeys;
+    final seenKeys = <String>{};
+    final duplicateIndexes = <int>{};
+
+    for (final index in _draftIndexesToImport) {
+      final draft = _drafts[index];
+      final key = _draftDuplicateKey(draft);
+
+      if (existingKeys.contains(key) || seenKeys.contains(key)) {
+        duplicateIndexes.add(index);
+        continue;
+      }
+
+      seenKeys.add(key);
+    }
+
+    return duplicateIndexes;
+  }
+
+  List<ProductImportDraft> get _draftsToImportWithoutDuplicates {
+    final duplicateIndexes = _duplicateImportIndexes;
+
+    return _draftIndexesToImport
+        .where((index) => !duplicateIndexes.contains(index))
         .map((index) => _drafts[index])
         .toList();
   }
@@ -162,12 +240,25 @@ class _ProductImportPageState extends State<ProductImportPage> {
     return _draftsToImport.length;
   }
 
+  int get _realImportCount {
+    return _draftsToImportWithoutDuplicates.length;
+  }
+
+  int get _duplicateImportCount {
+    return _duplicateImportIndexes.length;
+  }
+
   int get _importStock {
-    return _draftsToImport.fold<int>(0, (total, draft) => total + draft.stock);
+    return _draftsToImportWithoutDuplicates.fold<int>(
+      0,
+      (total, draft) => total + draft.stock,
+    );
   }
 
   int get _importReviewCount {
-    return _draftsToImport.where((draft) => draft.needsReview).length;
+    return _draftsToImportWithoutDuplicates
+        .where((draft) => draft.needsReview)
+        .length;
   }
 
   int? _colorCodeFromText(String color) {
@@ -217,11 +308,21 @@ class _ProductImportPageState extends State<ProductImportPage> {
   Future<void> _importDrafts() async {
     if (_drafts.isEmpty || _isImporting) return;
 
-    final draftsToImport = _draftsToImport;
-
-    if (draftsToImport.isEmpty) return;
-
+    final draftsToImport = _draftsToImportWithoutDuplicates;
+    final duplicateCount = _duplicateImportCount;
     final isPartialImport = _selectedIndexes.isNotEmpty;
+
+    if (draftsToImport.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Aucun produit à importer : tout est déjà présent ou en doublon.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -233,10 +334,12 @@ class _ProductImportPageState extends State<ProductImportPage> {
                 : 'Importer tous les produits',
           ),
           content: Text(
-            'Produits à importer : ${draftsToImport.length}\n'
-            'Stock total : $_importStock\n'
+            'Produits analysés : $_importCount\n'
+            'Produits à importer : $_realImportCount\n'
+            'Doublons ignorés : $duplicateCount\n'
+            'Stock total importé : $_importStock\n'
             'Lignes à vérifier : $_importReviewCount\n\n'
-            '${isPartialImport ? 'Seules les lignes sélectionnées seront importées.' : 'Aucune ligne sélectionnée : toute la liste sera importée.'}',
+            '${duplicateCount > 0 ? 'Les doublons seront ignorés automatiquement.' : 'Aucun doublon détecté.'}',
           ),
           actions: [
             TextButton(
@@ -246,7 +349,9 @@ class _ProductImportPageState extends State<ProductImportPage> {
             ElevatedButton.icon(
               onPressed: () => Navigator.of(context).pop(true),
               icon: const Icon(Icons.upload_file),
-              label: const Text('Importer'),
+              label: Text(
+                duplicateCount > 0 ? 'Importer sans doublons' : 'Importer',
+              ),
             ),
           ],
         );
@@ -269,7 +374,10 @@ class _ProductImportPageState extends State<ProductImportPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${draftsToImport.length} produit(s) importé(s)'),
+          content: Text(
+            '${draftsToImport.length} produit(s) importé(s)'
+            '${duplicateCount > 0 ? ' — $duplicateCount doublon(s) ignoré(s)' : ''}',
+          ),
           backgroundColor: Colors.green,
         ),
       );
@@ -538,6 +646,7 @@ class _ProductImportPageState extends State<ProductImportPage> {
 
   Widget _buildImportActions() {
     final isPartialImport = _selectedIndexes.isNotEmpty;
+    final duplicateCount = _duplicateImportCount;
 
     return Card(
       child: Padding(
@@ -547,14 +656,17 @@ class _ProductImportPageState extends State<ProductImportPage> {
             Expanded(
               child: Text(
                 isPartialImport
-                    ? 'Import prévu : $_importCount produit(s) sélectionné(s), stock total $_importStock, $_importReviewCount ligne(s) à vérifier.'
-                    : 'Aucune ligne sélectionnée : l’import ajoutera toute la liste ($_importCount produit(s), stock total $_importStock).',
+                    ? 'Import prévu : $_realImportCount produit(s) sélectionné(s), $_importStock article(s) en stock, $duplicateCount doublon(s) ignoré(s).'
+                    : 'Import prévu : $_realImportCount produit(s), $_importStock article(s) en stock, $duplicateCount doublon(s) ignoré(s).',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),
             const SizedBox(width: 12),
             ElevatedButton.icon(
-              onPressed: _drafts.isEmpty || _isImporting ? null : _importDrafts,
+              onPressed:
+                  _drafts.isEmpty || _isImporting || _realImportCount == 0
+                  ? null
+                  : _importDrafts,
               icon: _isImporting
                   ? const SizedBox(
                       width: 18,
