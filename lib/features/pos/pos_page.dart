@@ -74,41 +74,6 @@ class _PosPageState extends State<PosPage> {
     return _quantityInCart(product) < product.stock;
   }
 
-  bool _hasStockIssue() {
-    final settings = _settingsService.settings;
-
-    if (!settings.preventNegativeStock) {
-      return false;
-    }
-
-    for (final item in _cart) {
-      if (item.quantity > item.product.stock) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  void _showStockIssueMessage() {
-    final stockIssues = _cart.where(
-      (item) => item.quantity > item.product.stock,
-    );
-
-    final message = stockIssues.map((item) {
-      return '${item.product.name} : demandé ${item.quantity}, disponible ${item.product.stock}';
-    }).join('\n');
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Stock insuffisant :\n$message'),
-        backgroundColor: Colors.red,
-      ),
-    );
-
-    _barcodeFocusNode.requestFocus();
-  }
-
   void _syncCartCount() {
     final totalItems = _cart.fold(0, (sum, item) => sum + item.quantity);
     _productService.setCurrentCartCount(totalItems);
@@ -145,11 +110,7 @@ class _PosPageState extends State<PosPage> {
       if (cartIndex != -1) {
         _cart[cartIndex].quantity++;
       } else {
-        _cart.add(
-          CartItemModel(
-            product: product,
-          ),
-        );
+        _cart.add(CartItemModel(product: product));
       }
     });
 
@@ -247,9 +208,11 @@ class _PosPageState extends State<PosPage> {
       (item) => item.quantity > item.product.stock,
     );
 
-    final message = stockIssues.map((item) {
-      return '${item.product.name} : demandé ${item.quantity}, disponible ${item.product.stock}';
-    }).join('\n');
+    final message = stockIssues
+        .map((item) {
+          return '${item.product.name} : demandé ${item.quantity}, disponible ${item.product.stock}';
+        })
+        .join('\n');
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -261,7 +224,7 @@ class _PosPageState extends State<PosPage> {
     _barcodeFocusNode.requestFocus();
   }
 
-  void _checkout() {
+  Future<void> _checkout() async {
     if (_cart.isEmpty || _isCheckingOut) return;
 
     final settings = _settingsService.settings;
@@ -270,97 +233,6 @@ class _PosPageState extends State<PosPage> {
       _showStockIssueMessage();
       return;
     }
-
-    if (settings.confirmBeforeCheckout) {
-      _showCheckoutDialog();
-      return;
-    }
-
-    _processCheckout();
-  }
-
-  void _showCheckoutDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        String dialogPaymentMethod = _selectedPaymentMethod;
-
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Confirmer l\'encaissement'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Total : ${_total.toStringAsFixed(2)} €',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    initialValue: dialogPaymentMethod,
-                    decoration: const InputDecoration(
-                      labelText: 'Moyen de paiement',
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'Carte bancaire',
-                        child: Text('Carte bancaire'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Espèces',
-                        child: Text('Espèces'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Virement',
-                        child: Text('Virement'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Autre',
-                        child: Text('Autre'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) return;
-
-                      setDialogState(() {
-                        dialogPaymentMethod = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  const Text('Confirmer la vente ?'),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    _barcodeFocusNode.requestFocus();
-                  },
-                  child: const Text('Annuler'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      _selectedPaymentMethod = dialogPaymentMethod;
-                    });
-
-                    Navigator.of(context).pop();
-                    _processCheckout();
-                  },
-                  child: const Text('Confirmer'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Future<void> _processCheckout() async {
-    if (_isCheckingOut) return;
 
     if (settings.confirmBeforeCheckout) {
       final paymentMethod = await _showCheckoutDialog();
@@ -372,7 +244,9 @@ class _PosPageState extends State<PosPage> {
         return;
       }
 
-      _selectedPaymentMethod = paymentMethod;
+      setState(() {
+        _selectedPaymentMethod = paymentMethod;
+      });
     }
 
     await _processCheckout();
@@ -414,10 +288,7 @@ class _PosPageState extends State<PosPage> {
                         value: 'Virement',
                         child: Text('Virement'),
                       ),
-                      DropdownMenuItem(
-                        value: 'Autre',
-                        child: Text('Autre'),
-                      ),
+                      DropdownMenuItem(value: 'Autre', child: Text('Autre')),
                     ],
                     onChanged: (value) {
                       if (value == null) return;
@@ -453,6 +324,8 @@ class _PosPageState extends State<PosPage> {
   }
 
   Future<void> _processCheckout() async {
+    if (_isCheckingOut) return;
+
     setState(() {
       _isCheckingOut = true;
     });
@@ -561,11 +434,11 @@ class _PosPageState extends State<PosPage> {
                             itemCount: products.length,
                             gridDelegate:
                                 const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                              childAspectRatio: 1.6,
-                            ),
+                                  crossAxisCount: 3,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                  childAspectRatio: 1.6,
+                                ),
                             itemBuilder: (context, index) {
                               final product = products[index];
                               final canAdd = _canAddProduct(product);
@@ -573,8 +446,9 @@ class _PosPageState extends State<PosPage> {
                               return Card(
                                 clipBehavior: Clip.antiAlias,
                                 child: InkWell(
-                                  onTap:
-                                      canAdd ? () => _addToCart(product) : null,
+                                  onTap: canAdd
+                                      ? () => _addToCart(product)
+                                      : null,
                                   child: Opacity(
                                     opacity: canAdd ? 1 : 0.5,
                                     child: Padding(
@@ -589,23 +463,23 @@ class _PosPageState extends State<PosPage> {
                                             product.name,
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleMedium,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.titleMedium,
                                           ),
                                           const SizedBox(height: 6),
                                           Text(
                                             '${product.price.toStringAsFixed(2)} €',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodyMedium,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodyMedium,
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
                                             'Stock : ${product.stock}',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall,
                                           ),
                                         ],
                                       ),
@@ -655,8 +529,9 @@ class _PosPageState extends State<PosPage> {
                                   final item = _cart[index];
 
                                   return Padding(
-                                    padding:
-                                        const EdgeInsets.symmetric(vertical: 6),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 6,
+                                    ),
                                     child: Row(
                                       children: [
                                         Expanded(
@@ -666,15 +541,15 @@ class _PosPageState extends State<PosPage> {
                                             children: [
                                               Text(
                                                 item.product.name,
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodyLarge,
+                                                style: Theme.of(
+                                                  context,
+                                                ).textTheme.bodyLarge,
                                               ),
                                               Text(
                                                 '${item.product.price.toStringAsFixed(2)} € × ${item.quantity}',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodyMedium,
+                                                style: Theme.of(
+                                                  context,
+                                                ).textTheme.bodyMedium,
                                               ),
                                             ],
                                           ),
@@ -684,26 +559,33 @@ class _PosPageState extends State<PosPage> {
                                             IconButton(
                                               onPressed: () =>
                                                   _updateQuantity(index, -1),
-                                              icon: const Icon(Icons.remove,
-                                                  size: 18),
+                                              icon: const Icon(
+                                                Icons.remove,
+                                                size: 18,
+                                              ),
                                             ),
                                             Text(
                                               item.quantity.toString(),
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodyLarge,
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.bodyLarge,
                                             ),
                                             IconButton(
-                                              onPressed: !_settingsService
+                                              onPressed:
+                                                  !_settingsService
                                                           .settings
                                                           .preventNegativeStock ||
                                                       item.quantity <
                                                           item.product.stock
-                                                  ? () =>
-                                                      _updateQuantity(index, 1)
+                                                  ? () => _updateQuantity(
+                                                      index,
+                                                      1,
+                                                    )
                                                   : null,
-                                              icon: const Icon(Icons.add,
-                                                  size: 18),
+                                              icon: const Icon(
+                                                Icons.add,
+                                                size: 18,
+                                              ),
                                             ),
                                           ],
                                         ),
@@ -712,9 +594,9 @@ class _PosPageState extends State<PosPage> {
                                           child: Text(
                                             '${item.subtotal.toStringAsFixed(2)} €',
                                             textAlign: TextAlign.right,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodyLarge,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodyLarge,
                                           ),
                                         ),
                                       ],
@@ -735,21 +617,16 @@ class _PosPageState extends State<PosPage> {
                             ),
                             Text(
                               '${_total.toStringAsFixed(2)} €',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleLarge
+                              style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                   ),
                             ),
                           ],
                         ),
                       ),
-<<<<<<< HEAD
-=======
-
->>>>>>> 363fa12 (Apply settings to POS checkout)
                       DropdownButtonFormField<String>(
                         initialValue: _selectedPaymentMethod,
                         decoration: const InputDecoration(
