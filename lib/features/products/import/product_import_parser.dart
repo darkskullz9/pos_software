@@ -7,7 +7,7 @@ class ProductImportParser {
   final List<String> locations;
   final double defaultPrice;
 
-  const ProductImportParser({
+  ProductImportParser({
     required this.productTypes,
     required this.brands,
     required this.colors,
@@ -15,500 +15,966 @@ class ProductImportParser {
     this.defaultPrice = 0,
   });
 
-  static const Map<String, String> _brandAliases = {
-    '3 suisses': '3 Suisses',
-    'air spire': 'Airspire',
-    'airspire': 'Airspire',
-    'assos design': 'ASOS DESIGN',
-    'asos design': 'ASOS DESIGN',
-    'atlasformen': 'Atlas For Men',
-    'cache cache': 'Cache Cache',
-    'camayeu': 'Camaïeu',
-    'camayeru': 'Camaïeu',
-    'camaieu': 'Camaïeu',
-    'c&a': 'C&A',
-    'coca cola': 'Coca-Cola',
-    'dont call me': 'Don\'t Call Me',
-    'don\'t call me': 'Don\'t Call Me',
-    'eden rock': 'Eden Rock',
-    'fb sister': 'FB Sister',
-    'fashion private company women': 'Fashion Private Company Women',
-    'gemo': 'Gémo',
-    'gémo': 'Gémo',
-    'h&m': 'H&M',
-    'harris and lewis dept': 'Harris & Lewis Dept',
-    'heritage': 'Héritage',
-    'héritage': 'Héritage',
-    'in extenso': 'In Extenso',
-    'inextenso': 'In Extenso',
-    'jennufer': 'Jennyfer',
-    'jennyfer': 'Jennyfer',
-    'la fee maraboutee': 'La Fée Maraboutée',
-    'la fée maraboutée': 'La Fée Maraboutée',
-    'little marcel': 'Little Marcel',
-    'losc': 'LOSC',
-    'maison scotch': 'Maison Scotch',
-    'msmode': 'MS Mode',
-    'naf naf': 'Naf Naf',
-    'nasa': 'NASA',
-    'new balance': 'New Balance',
-    'only': 'ONLY',
-    'women only': 'ONLY',
-    'pas de marque': 'Sans marque',
-    'pink-berry': 'Pink Berry',
-    'pink berry': 'Pink Berry',
-    'pretty little thing': 'PrettyLittleThing',
-    'prettylittlething': 'PrettyLittleThing',
-    'pull and bear': 'Pull&Bear',
-    'pull&bear': 'Pull&Bear',
-    'qualite or': 'Qualité Or',
-    'qualité or': 'Qualité Or',
-    'redoute': 'La Redoute',
-    'ripcurl': 'Rip Curl',
-    'rip curl': 'Rip Curl',
-    'sans marque': 'Sans marque',
-    'star war': 'Star Wars',
-    'star wars': 'Star Wars',
-    'the perfect partner': 'The Perfect Partner',
-    'tommy hilfiger': 'Tommy Hilfiger',
-    'up2glide': 'Up2Glide',
-    'vero moda': 'Vero Moda',
-  };
-
-  static const Map<String, String> _typeAliases = {
-    'cache cou': 'Cache-cou',
-    'cache-cou': 'Cache-cou',
-    'echarpe': 'Écharpe',
-    'écharpe': 'Écharpe',
-    'tshirt': 'T-shirt',
-    'tee-shirt': 'T-shirt',
-    't-shirt': 'T-shirt',
-  };
+  static const String unknownValue = 'Non renseignée';
 
   List<ProductImportDraft> parse(String rawText) {
     final drafts = <ProductImportDraft>[];
-    var currentLocation = 'Non renseigné';
 
-    final lines = rawText.split('\n');
-
-    for (final rawLine in lines) {
-      final line = rawLine.trim();
-
-      if (line.isEmpty) continue;
-      if (_isSeparator(line)) continue;
-
-      if (_isLocationHeader(line)) {
-        currentLocation = _normalizeLocation(line);
-        continue;
-      }
-
-      if (_isCaseLine(line)) {
-        drafts.addAll(_parseCaseLine(line, currentLocation));
-        continue;
-      }
-
-      drafts.add(_parseProductLine(line, currentLocation));
-    }
-
-    return drafts;
-  }
-
-  bool _isSeparator(String line) {
-    return RegExp(r'^_+$').hasMatch(line);
-  }
-
-  bool _isLocationHeader(String line) {
-    final normalized = _normalize(line);
-
-    if (normalized.startsWith('etagere ')) return true;
-    if (normalized.startsWith('rond ')) return true;
-    if (normalized.startsWith('carre ')) return true;
-    if (normalized == 'etagere pantalon') return true;
-
-    return locations.any((location) => _normalize(location) == normalized);
-  }
-
-  String _normalizeLocation(String line) {
-    final normalizedLine = _normalize(line);
-
-    for (final location in locations) {
-      if (_normalize(location) == normalizedLine) {
-        return location;
-      }
-    }
-
-    if (normalizedLine == 'etagere pantalon') {
-      return 'Étagère pantalon';
-    }
-
-    return line.trim();
-  }
-
-  bool _isCaseLine(String line) {
-    return RegExp(r'^case\s*\d+\s*:', caseSensitive: false).hasMatch(line);
-  }
-
-  List<ProductImportDraft> _parseCaseLine(String line, String currentLocation) {
-    final match = RegExp(
-      r'^Case\s*(\d+)\s*:\s*(.+)$',
-      caseSensitive: false,
-    ).firstMatch(line);
-
-    if (match == null) {
-      return [_parseProductLine(line, currentLocation)];
-    }
-
-    final caseNumber = match.group(1)!;
-    final content = match.group(2)!;
-    final caseLocation = '$currentLocation - Case $caseNumber';
-
-    final parts = content.split(',');
-    final drafts = <ProductImportDraft>[];
-
+    String currentLocation = unknownValue;
     String? inheritedType;
 
-    for (final part in parts) {
-      var cleanPart = part.trim();
-      if (cleanPart.isEmpty) continue;
+    for (final rawLine in rawText.split('\n')) {
+      final cleanedLine = _cleanDiscordLine(rawLine);
 
-      final detectedType = _extractType(cleanPart);
+      if (cleanedLine.isEmpty) continue;
+      if (_isDiscordMetadataLine(cleanedLine)) continue;
 
-      if (detectedType != 'Article') {
-        inheritedType = detectedType;
-      } else if (inheritedType != null) {
-        cleanPart = '$inheritedType $cleanPart';
+      final locationResult = _extractLocationFromLine(cleanedLine);
+
+      if (locationResult != null) {
+        currentLocation = locationResult.location;
+
+        if (locationResult.content.trim().isEmpty) {
+          inheritedType = null;
+          continue;
+        }
+
+        final parsedDrafts = _parseContentLine(
+          rawLine: rawLine,
+          content: locationResult.content,
+          location: currentLocation,
+          inheritedType: inheritedType,
+        );
+
+        drafts.addAll(parsedDrafts);
+
+        if (parsedDrafts.isNotEmpty) {
+          inheritedType = parsedDrafts.last.type;
+        }
+
+        continue;
       }
 
-      drafts.add(_parseProductLine(cleanPart, caseLocation));
+      final typeHeaderResult = _extractTypeHeader(cleanedLine);
+
+      if (typeHeaderResult != null) {
+        inheritedType = typeHeaderResult.type;
+
+        final parsedDrafts = _parseContentLine(
+          rawLine: rawLine,
+          content: typeHeaderResult.content,
+          location: currentLocation,
+          inheritedType: inheritedType,
+        );
+
+        drafts.addAll(parsedDrafts);
+        continue;
+      }
+
+      final parsedDrafts = _parseContentLine(
+        rawLine: rawLine,
+        content: cleanedLine,
+        location: currentLocation,
+        inheritedType: inheritedType,
+      );
+
+      drafts.addAll(parsedDrafts);
+
+      if (parsedDrafts.isNotEmpty) {
+        final lastType = parsedDrafts.last.type;
+
+        if (lastType != 'Article') {
+          inheritedType = lastType;
+        }
+      }
+    }
+
+    return _mergeSimilarDrafts(drafts);
+  }
+
+  List<ProductImportDraft> _parseContentLine({
+    required String rawLine,
+    required String content,
+    required String location,
+    String? inheritedType,
+  }) {
+    final segments = _splitItems(content);
+    final drafts = <ProductImportDraft>[];
+
+    String? segmentInheritedType = inheritedType;
+
+    for (final segment in segments) {
+      final draft = _parseItem(
+        rawLine: rawLine,
+        segment: segment,
+        location: location,
+        inheritedType: segmentInheritedType,
+      );
+
+      if (draft == null) continue;
+
+      drafts.add(draft);
+
+      if (draft.type != 'Article') {
+        segmentInheritedType = draft.type;
+      }
     }
 
     return drafts;
   }
 
-  ProductImportDraft _parseProductLine(String line, String location) {
-    final quantityResult = _extractQuantity(line);
-    final cleanLine = quantityResult.cleanLine;
-    final stock = quantityResult.quantity;
+  ProductImportDraft? _parseItem({
+    required String rawLine,
+    required String segment,
+    required String location,
+    String? inheritedType,
+  }) {
+    final quantityResult = _extractQuantity(segment);
+    var workingText = _normalizeSpaces(quantityResult.text);
 
-    final type = _extractType(cleanLine);
-    final brand = _extractBrand(cleanLine);
-    final color = _extractColor(cleanLine);
-    final category = _categoryFromType(type);
-    final subCategory = _subCategoryFromType(type);
-    final description = _extractDescription(
-      cleanLine: cleanLine,
-      type: type,
-      brand: brand,
-      color: color,
-    );
+    if (workingText.isEmpty) return null;
+    if (_isDiscordMetadataLine(workingText)) return null;
+    if (_isOnlyNoise(workingText)) return null;
+
+    final typeMatch = _findProductType(workingText);
+    var type = typeMatch?.value;
+
+    if (typeMatch != null) {
+      workingText = _removeTextPart(workingText, typeMatch.matchedText);
+    }
+
+    type ??= inheritedType;
+
+    final brandMatch = _findBrand(workingText);
+
+    final brand = brandMatch?.value ?? 'Sans marque';
+
+    if (brandMatch != null) {
+      workingText = _removeTextPart(workingText, brandMatch.matchedText);
+    }
+
+    final colorMatch = _findColor(workingText);
+
+    final color = colorMatch?.value ?? unknownValue;
+
+    if (colorMatch != null) {
+      workingText = _removeTextPart(workingText, colorMatch.matchedText);
+    }
+
+    final sizeMatch = _findSize(workingText);
+
+    final size = sizeMatch?.value ?? unknownValue;
+
+    if (sizeMatch != null) {
+      workingText = _removeTextPart(workingText, sizeMatch.matchedText);
+    }
+
+    workingText = _cleanupRemainingText(workingText);
+
+    if (type == null || type.trim().isEmpty) {
+      if (_isOnlyColorOrQuantity(segment)) {
+        return null;
+      }
+
+      final hasUsefulSignal =
+          brand != 'Sans marque' ||
+          color != unknownValue ||
+          workingText.trim().isNotEmpty;
+
+      if (!hasUsefulSignal) {
+        return null;
+      }
+
+      type = 'Article';
+    }
+
+    if (type != 'Article' && _isOnlyColorOrQuantity(segment)) {
+      return null;
+    }
+
+    final name = _buildProductName(type: type, remainingText: workingText);
+
+    final category = _categoryForType(type);
+    final subCategory = _subCategoryForType(type);
+    final price = defaultPrice > 0 ? defaultPrice : _defaultPriceForType(type);
 
     return ProductImportDraft(
-      rawLine: line,
-      name: cleanLine,
+      rawLine: rawLine.trim(),
+      name: name,
       type: type,
       category: category,
       subCategory: subCategory,
       brand: brand,
       color: color,
-      size: 'Non renseignée',
+      size: size,
       location: location,
-      description: description,
-      stock: stock,
-      price: _defaultPriceForType(type),
+      description: _buildDescription(
+        type: type,
+        brand: brand,
+        color: color,
+        size: size,
+        location: location,
+      ),
+      stock: quantityResult.quantity,
+      price: price,
     );
   }
 
-  _QuantityResult _extractQuantity(String line) {
-    final match = RegExp(
-      r'(?:\(\s*x\s*(\d+)\s*\)|x\s*(\d+))$',
+  String _cleanDiscordLine(String line) {
+    var value = line.trim();
+
+    value = value.replaceAll(RegExp(r'<@!?\d+>'), '');
+    value = value.replaceAll(RegExp(r'^\s*[•\-*]\s*'), '');
+    value = value.replaceAll(RegExp(r'^\s*\d+[\).]\s*'), '');
+
+    value = value.replaceAll(
+      RegExp(
+        r'^.+?\s+[—-]\s+(aujourd’hui|aujourd hui|hier|today|yesterday|\d{1,2}/\d{1,2}/\d{2,4})\s+(à\s+)?\d{1,2}:\d{2}\s*',
+        caseSensitive: false,
+      ),
+      '',
+    );
+
+    value = value.replaceAll(
+      RegExp(
+        r'^(aujourd’hui|aujourd hui|hier|today|yesterday)\s+(à\s+)?\d{1,2}:\d{2}\s*$',
+        caseSensitive: false,
+      ),
+      '',
+    );
+
+    value = value.replaceAll(RegExp(r'^\d{1,2}:\d{2}\s*$'), '');
+
+    return _normalizeSpaces(value);
+  }
+
+  bool _isDiscordMetadataLine(String line) {
+    final value = line.trim();
+
+    if (value.isEmpty) return true;
+
+    final normalized = _normalize(value);
+
+    if (RegExp(r'^\d{1,2}:\d{2}$').hasMatch(value)) return true;
+
+    if (RegExp(r'^\d{1,2}/\d{1,2}/\d{2,4}$').hasMatch(value)) {
+      return true;
+    }
+
+    if (normalized == 'aujourdhui' ||
+        normalized == 'aujourd hui' ||
+        normalized == 'hier' ||
+        normalized == 'today' ||
+        normalized == 'yesterday') {
+      return true;
+    }
+
+    final hasProductSignal =
+        _findProductType(value) != null ||
+        _findBrand(value) != null ||
+        _findColor(value) != null ||
+        _extractQuantity(value).quantity > 1 ||
+        _looksLikeLocation(value);
+
+    if (!hasProductSignal && value.length <= 32 && !value.contains(' ')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  bool _isOnlyNoise(String value) {
+    final cleaned = value.trim();
+
+    if (cleaned.isEmpty) return true;
+    if (RegExp(r'^[\d\sx×*().:-]+$', caseSensitive: false).hasMatch(cleaned)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  bool _isOnlyColorOrQuantity(String value) {
+    final quantityResult = _extractQuantity(value);
+    final withoutQuantity = quantityResult.text.trim();
+
+    if (withoutQuantity.isEmpty) return true;
+
+    final colorMatch = _findColor(withoutQuantity);
+
+    if (colorMatch == null) return false;
+
+    final rest = _cleanupRemainingText(
+      _removeTextPart(withoutQuantity, colorMatch.matchedText),
+    );
+
+    return rest.isEmpty;
+  }
+
+  _LocationLineResult? _extractLocationFromLine(String line) {
+    final colonIndex = line.indexOf(':');
+
+    if (colonIndex != -1) {
+      final left = line.substring(0, colonIndex).trim();
+      final right = line.substring(colonIndex + 1).trim();
+
+      if (_looksLikeLocation(left)) {
+        return _LocationLineResult(
+          location: _canonicalLocation(left),
+          content: right,
+        );
+      }
+    }
+
+    if (_looksLikeLocation(line) && _findProductType(line) == null) {
+      return _LocationLineResult(
+        location: _canonicalLocation(line),
+        content: '',
+      );
+    }
+
+    return null;
+  }
+
+  _TypeHeaderResult? _extractTypeHeader(String line) {
+    final colonIndex = line.indexOf(':');
+
+    if (colonIndex == -1) return null;
+
+    final left = line.substring(0, colonIndex).trim();
+    final right = line.substring(colonIndex + 1).trim();
+
+    final typeMatch = _findProductType(left);
+
+    if (typeMatch == null) return null;
+
+    final remaining = _cleanupRemainingText(
+      _removeTextPart(left, typeMatch.matchedText),
+    );
+
+    if (remaining.isNotEmpty) return null;
+
+    return _TypeHeaderResult(type: typeMatch.value, content: right);
+  }
+
+  bool _looksLikeLocation(String value) {
+    final normalized = _normalize(value);
+
+    final locationKeywords = [
+      'case',
+      'etagere',
+      'rond',
+      'carre',
+      'portant',
+      'bac',
+      'panier',
+      'rayon',
+      'carton',
+      'sac',
+      'table',
+    ];
+
+    if (locations.any((location) => _normalize(location) == normalized)) {
+      return true;
+    }
+
+    return locationKeywords.any(
+      (keyword) => normalized == keyword || normalized.startsWith('$keyword '),
+    );
+  }
+
+  String _canonicalLocation(String value) {
+    final normalized = _normalize(value);
+
+    for (final location in locations) {
+      if (_normalize(location) == normalized) {
+        return location.trim();
+      }
+    }
+
+    return _capitalizeWords(value.trim());
+  }
+
+  List<String> _splitItems(String content) {
+    return content
+        .split(RegExp(r'[,;]'))
+        .map(_normalizeSpaces)
+        .where((item) => item.isNotEmpty)
+        .toList();
+  }
+
+  _QuantityResult _extractQuantity(String input) {
+    var text = _normalizeSpaces(input);
+    var quantity = 1;
+
+    final suffixPatterns = [
+      RegExp(r'(?:^|\s)[x×*]\s*(\d+)\s*$', caseSensitive: false),
+      RegExp(r'\((\d+)\)\s*$', caseSensitive: false),
+    ];
+
+    for (final pattern in suffixPatterns) {
+      final match = pattern.firstMatch(text);
+
+      if (match != null) {
+        quantity = int.tryParse(match.group(1) ?? '') ?? 1;
+        text = text.replaceRange(match.start, match.end, '').trim();
+
+        return _QuantityResult(
+          text: _normalizeSpaces(text),
+          quantity: quantity < 1 ? 1 : quantity,
+        );
+      }
+    }
+
+    final prefixWithX = RegExp(
+      r'^\s*(\d+)\s*[x×*]\s+(.+)$',
       caseSensitive: false,
-    ).firstMatch(line);
+    ).firstMatch(text);
 
-    if (match == null) {
-      return _QuantityResult(cleanLine: line.trim(), quantity: 1);
+    if (prefixWithX != null) {
+      quantity = int.tryParse(prefixWithX.group(1) ?? '') ?? 1;
+      text = prefixWithX.group(2) ?? '';
+
+      return _QuantityResult(
+        text: _normalizeSpaces(text),
+        quantity: quantity < 1 ? 1 : quantity,
+      );
     }
 
-    final quantityText = match.group(1) ?? match.group(2);
-    final quantity = int.tryParse(quantityText ?? '') ?? 1;
-    final cleanLine = line.substring(0, match.start).trim();
+    final prefixNumber = RegExp(r'^\s*(\d+)\s+(.+)$').firstMatch(text);
 
-    return _QuantityResult(cleanLine: cleanLine, quantity: quantity);
+    if (prefixNumber != null) {
+      quantity = int.tryParse(prefixNumber.group(1) ?? '') ?? 1;
+      text = prefixNumber.group(2) ?? '';
+
+      return _QuantityResult(
+        text: _normalizeSpaces(text),
+        quantity: quantity < 1 ? 1 : quantity,
+      );
+    }
+
+    return _QuantityResult(text: text, quantity: quantity);
   }
 
-  String _extractType(String line) {
-    final normalizedLine = _normalize(line);
+  _MatchedValue? _findProductType(String text) {
+    final candidates = <String, String>{};
 
-    final aliasEntries = _typeAliases.entries.toList()
+    for (final type in _defaultProductTypes) {
+      candidates[type] = type;
+    }
+
+    for (final type in productTypes) {
+      if (type.trim().isNotEmpty) {
+        candidates[type.trim()] = _capitalizeWords(type.trim());
+      }
+    }
+
+    final aliases = <String, String>{
+      'tee shirt': 'T-shirt',
+      'tee-shirt': 'T-shirt',
+      'tshirt': 'T-shirt',
+      't-shirt': 'T-shirt',
+      'pull': 'Pull',
+      'sweat': 'Pull',
+      'hoodie': 'Pull',
+      'pantalon': 'Pantalon',
+      'pant': 'Pantalon',
+      'jean': 'Pantalon',
+      'jeans': 'Pantalon',
+      'cargo': 'Pantalon',
+      'robe': 'Robe',
+      'jupe': 'Jupe',
+      'short': 'Short',
+      'chemise': 'Chemise',
+      'polo': 'Polo',
+      'veste': 'Veste',
+      'manteau': 'Manteau',
+      'gilet': 'Gilet',
+      'haut': 'Haut',
+      'top': 'Haut',
+      'body': 'Body',
+      'ensemble': 'Ensemble',
+      'ensembles': 'Ensemble',
+      'echarpe': 'Écharpe',
+      'écharpe': 'Écharpe',
+      'cache cou': 'Cache-cou',
+      'cache-cou': 'Cache-cou',
+      'bonnet': 'Bonnet',
+      'casquette': 'Casquette',
+    };
+
+    candidates.addAll(aliases);
+
+    return _findCandidate(text, candidates);
+  }
+
+  _MatchedValue? _findBrand(String text) {
+    final candidates = <String, String>{};
+
+    for (final brand in brands) {
+      if (brand.trim().isNotEmpty) {
+        candidates[brand.trim()] = _normalizeBrandName(brand.trim());
+      }
+    }
+
+    final aliases = <String, String>{
+      'camayeu': 'Camaïeu',
+      'camayeru': 'Camaïeu',
+      'camaieu': 'Camaïeu',
+      'cache cache': 'Cache Cache',
+      'cache-cache': 'Cache Cache',
+      'asos': 'ASOS',
+      'assos': 'ASOS',
+      'asos design': 'ASOS DESIGN',
+      'women only': 'Women Only',
+      'only': 'Only',
+      'zara': 'Zara',
+      'h&m': 'H&M',
+      'hm': 'H&M',
+      'nike': 'Nike',
+      'adidas': 'Adidas',
+      'puma': 'Puma',
+      'reebok': 'Reebok',
+      'jennyfer': 'Jennyfer',
+      'kiabi': 'Kiabi',
+      'shein': 'Shein',
+      'bershka': 'Bershka',
+      'stradivarius': 'Stradivarius',
+      'pull and bear': 'Pull&Bear',
+      'pull&bear': 'Pull&Bear',
+    };
+
+    candidates.addAll(aliases);
+
+    return _findCandidate(text, candidates);
+  }
+
+  _MatchedValue? _findColor(String text) {
+    final candidates = <String, String>{};
+
+    for (final color in _defaultColors) {
+      candidates[color] = color;
+    }
+
+    for (final color in colors) {
+      if (color.trim().isNotEmpty) {
+        candidates[color.trim()] = _capitalizeWords(color.trim());
+      }
+    }
+
+    final aliases = <String, String>{
+      'noir': 'Noir',
+      'noire': 'Noir',
+      'blanc': 'Blanc',
+      'blanche': 'Blanc',
+      'bleu': 'Bleu',
+      'bleue': 'Bleu',
+      'rouge': 'Rouge',
+      'gris': 'Gris',
+      'grise': 'Gris',
+      'marron': 'Marron',
+      'beige': 'Beige',
+      'vert': 'Vert',
+      'verte': 'Vert',
+      'jaune': 'Jaune',
+      'rose': 'Rose',
+      'violet': 'Violet',
+      'violette': 'Violet',
+      'orange': 'Orange',
+      'camel': 'Camel',
+      'kaki': 'Kaki',
+      'bordeaux': 'Bordeaux',
+      'doré': 'Doré',
+      'dore': 'Doré',
+      'argenté': 'Argenté',
+      'argente': 'Argenté',
+      'multicolore': 'Multicolore',
+    };
+
+    candidates.addAll(aliases);
+
+    return _findCandidate(text, candidates);
+  }
+
+  _MatchedValue? _findSize(String text) {
+    final sizes = [
+      'XXS',
+      'XS',
+      'S',
+      'M',
+      'L',
+      'XL',
+      'XXL',
+      'XXXL',
+      '34',
+      '36',
+      '38',
+      '40',
+      '42',
+      '44',
+      '46',
+      '48',
+      '50',
+      'TU',
+      'Taille unique',
+    ];
+
+    for (final size in sizes) {
+      final regex = RegExp(
+        r'(^|[^a-zA-Z0-9])' + RegExp.escape(size) + r'($|[^a-zA-Z0-9])',
+        caseSensitive: false,
+      );
+
+      final match = regex.firstMatch(text);
+
+      if (match != null) {
+        final matchedText = text.substring(match.start, match.end).trim();
+
+        return _MatchedValue(
+          value: size.toUpperCase() == 'TAILLE UNIQUE' ? 'TU' : size,
+          matchedText: matchedText,
+        );
+      }
+    }
+
+    return null;
+  }
+
+  _MatchedValue? _findCandidate(String text, Map<String, String> candidates) {
+    final sortedEntries = candidates.entries.toList()
       ..sort((a, b) => b.key.length.compareTo(a.key.length));
 
-    for (final entry in aliasEntries) {
-      final alias = _normalize(entry.key);
+    for (final entry in sortedEntries) {
+      final candidate = entry.key.trim();
 
-      if (normalizedLine.startsWith(alias)) {
-        return entry.value;
+      if (candidate.isEmpty) continue;
+
+      final regex = RegExp(
+        r'(^|[^a-zA-Z0-9])' + RegExp.escape(candidate) + r'($|[^a-zA-Z0-9])',
+        caseSensitive: false,
+      );
+
+      final match = regex.firstMatch(text);
+
+      if (match == null) continue;
+
+      final matchedText = text.substring(match.start, match.end).trim();
+
+      return _MatchedValue(value: entry.value, matchedText: matchedText);
+    }
+
+    final normalizedText = _normalize(text);
+
+    for (final entry in sortedEntries) {
+      final candidate = entry.key.trim();
+
+      if (candidate.isEmpty) continue;
+
+      final normalizedCandidate = _normalize(candidate);
+
+      if (normalizedText == normalizedCandidate ||
+          normalizedText.contains(' $normalizedCandidate ') ||
+          normalizedText.startsWith('$normalizedCandidate ') ||
+          normalizedText.endsWith(' $normalizedCandidate')) {
+        return _MatchedValue(value: entry.value, matchedText: candidate);
       }
     }
 
-    final sortedTypes = List<String>.from(productTypes)
-      ..sort((a, b) => b.length.compareTo(a.length));
-
-    for (final type in sortedTypes) {
-      if (normalizedLine.startsWith(_normalize(type))) {
-        return type;
-      }
-    }
-
-    return 'Article';
+    return null;
   }
 
-  String _extractBrand(String line) {
-    final normalizedLine = _normalize(line);
+  String _removeTextPart(String source, String part) {
+    if (part.trim().isEmpty) return source;
 
-    if (normalizedLine.contains('sans marque') ||
-        normalizedLine.contains('pas de marque')) {
-      return 'Sans marque';
-    }
-
-    final aliasEntries = _brandAliases.entries.toList()
-      ..sort((a, b) => b.key.length.compareTo(a.key.length));
-
-    for (final entry in aliasEntries) {
-      final alias = _normalize(entry.key);
-
-      if (normalizedLine.endsWith(alias) ||
-          _containsPhrase(normalizedLine, alias)) {
-        return entry.value;
-      }
-    }
-
-    final sortedBrands = List<String>.from(brands)
-      ..sort((a, b) => b.length.compareTo(a.length));
-
-    for (final brand in sortedBrands) {
-      final normalizedBrand = _normalize(brand);
-
-      if (normalizedLine.endsWith(normalizedBrand) ||
-          _containsPhrase(normalizedLine, normalizedBrand)) {
-        return brand;
-      }
-    }
-
-    return 'Sans marque';
+    return _normalizeSpaces(
+      source.replaceAll(
+        RegExp(RegExp.escape(part.trim()), caseSensitive: false),
+        ' ',
+      ),
+    );
   }
 
-  String _extractColor(String line) {
-    final normalizedLine = _normalize(line);
-    final detectedColors = <String>[];
+  String _cleanupRemainingText(String value) {
+    var result = _normalizeSpaces(value);
 
-    final sortedColors = List<String>.from(colors)
-      ..sort((a, b) => b.length.compareTo(a.length));
+    result = result.replaceAll(RegExp(r'[:|/\\]+'), ' ');
+    result = result.replaceAll(RegExp(r'\bde\b', caseSensitive: false), ' ');
+    result = result.replaceAll(RegExp(r'\bdu\b', caseSensitive: false), ' ');
+    result = result.replaceAll(RegExp(r'\bla\b', caseSensitive: false), ' ');
+    result = result.replaceAll(RegExp(r'\ble\b', caseSensitive: false), ' ');
+    result = result.replaceAll(RegExp(r'\bles\b', caseSensitive: false), ' ');
 
-    for (final color in sortedColors) {
-      if (_normalize(color) == 'non renseignee') continue;
-
-      final normalizedColor = _normalize(color);
-
-      if (_containsWord(normalizedLine, normalizedColor)) {
-        final displayColor = _normalizeDisplayColor(color);
-
-        if (!detectedColors.contains(displayColor)) {
-          detectedColors.add(displayColor);
-        }
-      }
-    }
-
-    if (detectedColors.isEmpty) {
-      return 'Non renseignée';
-    }
-
-    return detectedColors.join('/');
+    return _normalizeSpaces(result);
   }
 
-  String _extractDescription({
-    required String cleanLine,
+  String _buildProductName({
+    required String type,
+    required String remainingText,
+  }) {
+    final cleanType = type.trim().isEmpty ? 'Article' : type.trim();
+    final motif = _cleanupRemainingText(remainingText);
+
+    if (motif.isEmpty) {
+      return cleanType;
+    }
+
+    if (_normalize(motif) == _normalize(cleanType)) {
+      return cleanType;
+    }
+
+    return '$cleanType ${motif.toLowerCase()}';
+  }
+
+  String _buildDescription({
     required String type,
     required String brand,
     required String color,
+    required String size,
+    required String location,
   }) {
-    var description = cleanLine;
+    final parts = <String>[
+      type,
+      if (brand != 'Sans marque') brand,
+      if (color != unknownValue) color,
+      if (size != unknownValue) 'Taille $size',
+      if (location != unknownValue) location,
+    ];
 
-    if (type != 'Article') {
-      description = description.replaceFirst(
-        RegExp(RegExp.escape(type), caseSensitive: false),
-        '',
-      );
-    }
-
-    if (brand != 'Sans marque') {
-      description = description.replaceAll(
-        RegExp(RegExp.escape(brand), caseSensitive: false),
-        '',
-      );
-    }
-
-    description = description
-        .replaceAll(RegExp(r'sans marque', caseSensitive: false), '')
-        .replaceAll(RegExp(r'pas de marque', caseSensitive: false), '');
-
-    for (final colorPart in color.split('/')) {
-      description = description.replaceAll(
-        RegExp(RegExp.escape(colorPart), caseSensitive: false),
-        '',
-      );
-    }
-
-    description = description
-        .replaceAll('/', ' ')
-        .replaceAll('-', ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-
-    if (description.isEmpty) {
-      return '-';
-    }
-
-    return description;
+    return parts.join(' - ');
   }
 
-  String _categoryFromType(String type) {
-    switch (type) {
-      case 'Écharpe':
-      case 'Cache-cou':
-        return 'Accessoires';
-      default:
-        return 'Vêtements';
+  List<ProductImportDraft> _mergeSimilarDrafts(
+    List<ProductImportDraft> drafts,
+  ) {
+    final merged = <String, ProductImportDraft>{};
+
+    for (final draft in drafts) {
+      final key = [
+        _normalize(draft.name),
+        _normalize(draft.brand),
+        _normalize(draft.color),
+        _normalize(draft.size),
+      ].join('|');
+
+      final existing = merged[key];
+
+      if (existing == null) {
+        merged[key] = draft;
+        continue;
+      }
+
+      merged[key] = ProductImportDraft(
+        rawLine: '${existing.rawLine}\n${draft.rawLine}',
+        name: existing.name,
+        type: existing.type,
+        category: existing.category,
+        subCategory: existing.subCategory,
+        brand: existing.brand,
+        color: existing.color,
+        size: existing.size,
+        location: existing.location,
+        description: existing.description,
+        stock: existing.stock + draft.stock,
+        price: existing.price,
+      );
     }
+
+    return merged.values.toList();
   }
 
-  String _subCategoryFromType(String type) {
-    switch (type) {
-      case 'Pantalon':
-      case 'Short':
-      case 'Jupe':
-        return 'Bas';
+  String _categoryForType(String type) {
+    if (_normalize(type) == 'article') return 'À vérifier';
 
-      case 'T-shirt':
-      case 'Débardeur':
-      case 'Brassière':
-      case 'Chemise':
-      case 'Polo':
-      case 'Haut':
-      case 'Pull':
-      case 'Gilet':
-        return 'Hauts';
+    return 'Vêtement';
+  }
 
-      case 'Robe':
-        return 'Robes';
+  String _subCategoryForType(String type) {
+    final normalized = _normalize(type);
 
-      case 'Veste':
-      case 'Manteau':
-        return 'Vestes & manteaux';
-
-      case 'Ensemble femme':
-      case 'Ensemble enfant fille':
-        return 'Ensembles';
-
-      case 'Écharpe':
-      case 'Cache-cou':
-        return 'Accessoires';
-
-      default:
-        return 'Autres';
+    if (['pantalon', 'jupe', 'short'].contains(normalized)) {
+      return 'Bas';
     }
+
+    if ([
+      'pull',
+      't shirt',
+      'tshirt',
+      'chemise',
+      'polo',
+      'haut',
+      'body',
+      'gilet',
+      'veste',
+      'manteau',
+    ].contains(normalized)) {
+      return 'Haut';
+    }
+
+    if (['echarpe', 'cache cou', 'bonnet', 'casquette'].contains(normalized)) {
+      return 'Accessoire';
+    }
+
+    if (normalized == 'robe') return 'Robe';
+    if (normalized == 'ensemble') return 'Ensemble';
+
+    return 'À vérifier';
   }
 
   double _defaultPriceForType(String type) {
-    if (defaultPrice > 0) {
-      return defaultPrice;
+    final normalized = _normalize(type);
+
+    if (['echarpe', 'cache cou', 'bonnet', 'casquette'].contains(normalized)) {
+      return 1;
     }
 
-    switch (type) {
-      case 'T-shirt':
-      case 'Débardeur':
-      case 'Haut':
-        return 2.0;
-
-      case 'Chemise':
-      case 'Polo':
-      case 'Jupe':
-      case 'Short':
-        return 3.0;
-
-      case 'Pull':
-      case 'Gilet':
-      case 'Pantalon':
-        return 4.0;
-
-      case 'Robe':
-      case 'Veste':
-      case 'Manteau':
-        return 5.0;
-
-      case 'Écharpe':
-      case 'Cache-cou':
-        return 1.0;
-
-      case 'Ensemble femme':
-      case 'Ensemble enfant fille':
-        return 6.0;
-
-      default:
-        return 0.0;
+    if (['t shirt', 'tshirt', 'haut', 'body'].contains(normalized)) {
+      return 2;
     }
-  }
 
-  String _normalizeDisplayColor(String color) {
-    switch (_normalize(color)) {
-      case 'creme':
-        return 'crème';
-      default:
-        return color.toLowerCase();
+    if (['chemise', 'polo', 'jupe', 'short'].contains(normalized)) {
+      return 3;
     }
+
+    if (['pull', 'gilet', 'pantalon'].contains(normalized)) {
+      return 4;
+    }
+
+    if (['robe', 'veste', 'manteau'].contains(normalized)) {
+      return 5;
+    }
+
+    if (normalized == 'ensemble') return 6;
+
+    return 0;
   }
 
-  bool _containsPhrase(String text, String phrase) {
-    return text.contains(phrase);
+  String _normalizeBrandName(String value) {
+    final trimmed = value.trim();
+
+    if (trimmed.toUpperCase() == trimmed && trimmed.length <= 5) {
+      return trimmed;
+    }
+
+    return _capitalizeWords(trimmed);
   }
 
-  bool _containsWord(String text, String word) {
-    final pattern = RegExp(
-      '(^|[^a-z0-9])${RegExp.escape(word)}([^a-z0-9]|\$)',
-      caseSensitive: false,
-    );
+  String _capitalizeWords(String value) {
+    return value
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .map((part) {
+          if (part.length == 1) return part.toUpperCase();
 
-    return pattern.hasMatch(text);
+          return part[0].toUpperCase() + part.substring(1).toLowerCase();
+        })
+        .join(' ');
+  }
+
+  String _normalizeSpaces(String value) {
+    return value.trim().replaceAll(RegExp(r'\s+'), ' ');
   }
 
   String _normalize(String value) {
-    return value
+    return _normalizeSpaces(value)
         .toLowerCase()
-        .trim()
+        .replaceAll('œ', 'oe')
         .replaceAll('à', 'a')
-        .replaceAll('á', 'a')
         .replaceAll('â', 'a')
         .replaceAll('ä', 'a')
+        .replaceAll('á', 'a')
         .replaceAll('ã', 'a')
         .replaceAll('å', 'a')
-        .replaceAll('ç', 'c')
         .replaceAll('é', 'e')
         .replaceAll('è', 'e')
         .replaceAll('ê', 'e')
         .replaceAll('ë', 'e')
         .replaceAll('î', 'i')
         .replaceAll('ï', 'i')
+        .replaceAll('í', 'i')
         .replaceAll('ô', 'o')
         .replaceAll('ö', 'o')
+        .replaceAll('ó', 'o')
+        .replaceAll('õ', 'o')
         .replaceAll('ù', 'u')
         .replaceAll('û', 'u')
         .replaceAll('ü', 'u')
-        .replaceAll('ÿ', 'y')
-        .replaceAll(RegExp(r'\s+'), ' ');
+        .replaceAll('ú', 'u')
+        .replaceAll('ç', 'c')
+        .replaceAll('-', ' ');
+  }
+
+  List<String> get _defaultProductTypes {
+    return const [
+      'T-shirt',
+      'Pull',
+      'Pantalon',
+      'Robe',
+      'Jupe',
+      'Short',
+      'Chemise',
+      'Polo',
+      'Veste',
+      'Manteau',
+      'Gilet',
+      'Haut',
+      'Body',
+      'Ensemble',
+      'Écharpe',
+      'Cache-cou',
+      'Bonnet',
+      'Casquette',
+    ];
+  }
+
+  List<String> get _defaultColors {
+    return const [
+      'Noir',
+      'Blanc',
+      'Bleu',
+      'Rouge',
+      'Gris',
+      'Marron',
+      'Beige',
+      'Vert',
+      'Jaune',
+      'Rose',
+      'Violet',
+      'Orange',
+      'Camel',
+      'Kaki',
+      'Bordeaux',
+      'Doré',
+      'Argenté',
+      'Multicolore',
+    ];
   }
 }
 
 class _QuantityResult {
-  final String cleanLine;
+  final String text;
   final int quantity;
 
-  const _QuantityResult({required this.cleanLine, required this.quantity});
+  const _QuantityResult({required this.text, required this.quantity});
+}
+
+class _MatchedValue {
+  final String value;
+  final String matchedText;
+
+  const _MatchedValue({required this.value, required this.matchedText});
+}
+
+class _LocationLineResult {
+  final String location;
+  final String content;
+
+  const _LocationLineResult({required this.location, required this.content});
+}
+
+class _TypeHeaderResult {
+  final String type;
+  final String content;
+
+  const _TypeHeaderResult({required this.type, required this.content});
 }

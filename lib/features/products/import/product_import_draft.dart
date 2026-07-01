@@ -28,10 +28,7 @@ class ProductImportDraft {
   });
 
   bool get needsReview {
-    return type == 'Article' ||
-        color == 'Non renseignée' ||
-        size == 'Non renseignée' ||
-        price <= 0;
+    return type == 'Article' || name.trim().isEmpty || stock <= 0 || price <= 0;
   }
 
   ProductImportDraft copyWith({
