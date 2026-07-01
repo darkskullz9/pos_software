@@ -1,29 +1,35 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/product_model.dart';
+import '../models/sale_model.dart';
+
 import 'barcode_service.dart';
 import 'database_service.dart';
 
 class ProductService extends ChangeNotifier {
   ProductService() {
     loadProducts();
+    loadTodaySales();
   }
 
   final _barcodeService = BarcodeService();
   final _databaseService = DatabaseService.instance;
 
   final List<ProductModel> _products = [];
+  final List<SaleModel> _sales = [];
 
   double _salesTotal = 0;
   int _currentCartCount = 0;
   bool _isLoading = false;
 
   List<ProductModel> get products => List.unmodifiable(_products);
+  List<SaleModel> get sales => List.unmodifiable(_sales);
   double get salesTotal => _salesTotal;
   int get currentCartCount => _currentCartCount;
   bool get isLoading => _isLoading;
 
-  int get totalStock => _products.fold(0, (sum, product) => sum + product.stock);
+  int get totalStock =>
+      _products.fold(0, (sum, product) => sum + product.stock);
 
   Future<void> loadProducts() async {
     _isLoading = true;
@@ -40,8 +46,21 @@ class ProductService extends ChangeNotifier {
     }
   }
 
+  Future<void> loadTodaySales() async {
+    final items = await _databaseService.getSalesForDay(DateTime.now());
+
+    _sales
+      ..clear()
+      ..addAll(items);
+
+    _salesTotal = _sales.fold(0, (sum, sale) => sum + sale.total);
+
+    notifyListeners();
+  }
+
   Future<void> addProduct(ProductModel product) async {
-    final barcode = product.barcode ??
+    final barcode =
+        product.barcode ??
         _barcodeService.generateClothingBarcode(
           productIndex: _products.length,
           categoryCode: product.categoryCode,
@@ -95,9 +114,7 @@ class ProductService extends ChangeNotifier {
     if (index == -1) return;
 
     final product = _products[index];
-    final updated = product.copyWith(
-      stock: product.stock + quantity,
-    );
+    final updated = product.copyWith(stock: product.stock + quantity);
 
     await _databaseService.updateProduct(updated);
     _products[index] = updated;
@@ -128,9 +145,34 @@ class ProductService extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addSale(double total) {
-    _salesTotal += total;
+  Future<SaleModel> addSale({
+    required double total,
+    required String paymentMethod,
+    DateTime? createdAt,
+  }) async {
+    final saleDate = createdAt ?? DateTime.now();
+
+    final sale = SaleModel(
+      total: total,
+      paymentMethod: paymentMethod,
+      createdAt: saleDate,
+    );
+
+    final id = await _databaseService.insertSale(sale);
+    final savedSale = sale.copyWith(id: id);
+
+    if (_isSameDay(saleDate, DateTime.now())) {
+      _sales.insert(0, savedSale);
+      _salesTotal += total;
+    }
+
     notifyListeners();
+
+    return savedSale;
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
   ProductModel? findByBarcode(String barcode) {

@@ -38,6 +38,12 @@ class AppSidebar extends StatelessWidget {
         ),
 
         NavigationRailDestination(
+          icon: Icon(Icons.calculate_outlined),
+          selectedIcon: Icon(Icons.calculate),
+          label: Text('Comptage'),
+        ),
+
+        NavigationRailDestination(
           icon: Icon(Icons.qr_code_scanner_outlined),
           selectedIcon: Icon(Icons.qr_code_scanner),
           label: Text('Codes-barres'),

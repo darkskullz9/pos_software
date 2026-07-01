@@ -9,6 +9,7 @@ import '../../features/dashboard/dashboard_page.dart';
 import '../../features/pos/pos_page.dart';
 import '../../features/products/products_page.dart';
 import '../../features/settings/settings_page.dart';
+import '../../features/cash_count/cash_count_page.dart';
 import 'app_sidebar.dart';
 
 class AppShell extends StatefulWidget {
@@ -34,6 +35,7 @@ class _AppShellState extends State<AppShell> {
     'Tableau de bord',
     'Inventaire',
     'Caisse',
+    'Comptage de caisse',
     'Codes-barres',
     'Paramètres',
   ];
@@ -69,7 +71,7 @@ class _AppShellState extends State<AppShell> {
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                 ),
-                
+
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
@@ -87,11 +89,15 @@ class _AppShellState extends State<AppShell> {
                           productService: widget.productService,
                           settingsService: widget.settingsService,
                         ),
-                        BarcodePage(productService: widget.productService),
-                        
-                        SettingsPage(
+
+                        CashCountPage(
+                          productService: widget.productService,
                           settingsService: widget.settingsService,
                         ),
+
+                        BarcodePage(productService: widget.productService),
+
+                        SettingsPage(settingsService: widget.settingsService),
                       ],
                     ),
                   ),

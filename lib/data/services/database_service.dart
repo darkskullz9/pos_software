@@ -2,6 +2,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/product_model.dart';
+import '../models/sale_model.dart';
 
 class DatabaseService {
   DatabaseService._internal();
@@ -11,10 +12,11 @@ class DatabaseService {
   static Database? _database;
 
   static const String _databaseName = 'inventory.db';
-  static const int _databaseVersion = 2;
+  static const int _databaseVersion = 3;
 
   static const String productsTable = 'products';
   static const String settingsTable = 'settings';
+  static const String salesTable = 'sales';
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -50,11 +52,16 @@ class DatabaseService {
     ''');
 
     await _createSettingsTable(db);
+    await _createSalesTable(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await _createSettingsTable(db);
+    }
+
+    if (oldVersion < 3) {
+      await _createSalesTable(db);
     }
   }
 
@@ -65,6 +72,60 @@ class DatabaseService {
         value TEXT NOT NULL
       )
     ''');
+  }
+
+  Future<void> _createSalesTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $salesTable (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        total REAL NOT NULL,
+        payment_method TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<int> insertSale(SaleModel sale) async {
+    final db = await database;
+
+    return db.insert(
+      salesTable,
+      sale.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<SaleModel>> getSales({DateTime? from, DateTime? to}) async {
+    final db = await database;
+
+    final whereParts = <String>[];
+    final whereArgs = <Object?>[];
+
+    if (from != null) {
+      whereParts.add('created_at >= ?');
+      whereArgs.add(from.toIso8601String());
+    }
+
+    if (to != null) {
+      whereParts.add('created_at < ?');
+      whereArgs.add(to.toIso8601String());
+    }
+
+    final maps = await db.query(
+      salesTable,
+      where: whereParts.isEmpty ? null : whereParts.join(' AND '),
+      whereArgs: whereArgs.isEmpty ? null : whereArgs,
+      orderBy: 'created_at DESC',
+    );
+
+    return maps.map((map) => SaleModel.fromMap(map)).toList();
+  }
+
+  Future<List<SaleModel>> getSalesForDay(DateTime day) async {
+    final start = DateTime(day.year, day.month, day.day);
+    final end = start.add(const Duration(days: 1));
+
+    return getSales(from: start, to: end);
   }
 
   Future<Map<String, String>> getSettings() async {
@@ -82,14 +143,10 @@ class DatabaseService {
     final batch = db.batch();
 
     for (final entry in settings.entries) {
-      batch.insert(
-        settingsTable,
-        {
-          'key': entry.key,
-          'value': entry.value,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      batch.insert(settingsTable, {
+        'key': entry.key,
+        'value': entry.value,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
     await batch.commit(noResult: true);
@@ -106,10 +163,7 @@ class DatabaseService {
 
   Future<List<ProductModel>> getProducts() async {
     final db = await database;
-    final maps = await db.query(
-      productsTable,
-      orderBy: 'id DESC',
-    );
+    final maps = await db.query(productsTable, orderBy: 'id DESC');
 
     return maps.map((map) => ProductModel.fromMap(map)).toList();
   }
@@ -143,11 +197,7 @@ class DatabaseService {
 
   Future<int> deleteProduct(int id) async {
     final db = await database;
-    return db.delete(
-      productsTable,
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    return db.delete(productsTable, where: 'id = ?', whereArgs: [id]);
   }
 
   Future<void> deleteDatabaseFile() async {

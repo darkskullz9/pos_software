@@ -424,7 +424,10 @@ class _PosPageState extends State<PosPage> {
         );
       }
 
-      _productService.addSale(saleTotal);
+      await _productService.addSale(
+        total: saleTotal,
+        paymentMethod: paymentMethod,
+      );
 
       if (!mounted) return;
 
