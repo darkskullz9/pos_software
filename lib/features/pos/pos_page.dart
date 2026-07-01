@@ -4,6 +4,9 @@ import '../../data/models/cart_item_model.dart';
 import '../../data/models/product_model.dart';
 import '../../data/services/product_service.dart';
 import '../../data/services/settings_service.dart';
+import '../../data/services/receipt_service.dart';
+
+enum _ReceiptAction { none, print, share }
 
 class PosPage extends StatefulWidget {
   final ProductService productService;
@@ -22,6 +25,7 @@ class PosPage extends StatefulWidget {
 class _PosPageState extends State<PosPage> {
   late final ProductService _productService;
   late final SettingsService _settingsService;
+  late final ReceiptService _receiptService;
   late String _selectedPaymentMethod;
 
   final TextEditingController _barcodeController = TextEditingController();
@@ -40,6 +44,7 @@ class _PosPageState extends State<PosPage> {
 
     _productService = widget.productService;
     _settingsService = widget.settingsService;
+    _receiptService = ReceiptService();
 
     _selectedPaymentMethod = _settingsService.settings.defaultPaymentMethod;
 
@@ -323,6 +328,77 @@ class _PosPageState extends State<PosPage> {
     );
   }
 
+  Future<void> _showReceiptDialog({
+    required List<CartItemModel> items,
+    required double total,
+    required String paymentMethod,
+  }) async {
+    final action = await showDialog<_ReceiptAction>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Ticket de caisse'),
+          content: const Text(
+            'Comment voulez-vous transmettre le ticket au client ?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(_ReceiptAction.none),
+              child: const Text('Aucun ticket'),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).pop(_ReceiptAction.share),
+              icon: const Icon(Icons.share),
+              label: const Text('Partager PDF'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.of(context).pop(_ReceiptAction.print),
+              icon: const Icon(Icons.print),
+              label: const Text('Imprimer / enregistrer'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) return;
+
+    if (action == null || action == _ReceiptAction.none) {
+      _barcodeFocusNode.requestFocus();
+      return;
+    }
+
+    final settings = _settingsService.settings;
+
+    if (action == _ReceiptAction.print) {
+      await _receiptService.printReceipt(
+        storeName: settings.storeName,
+        currency: settings.currency,
+        paymentMethod: paymentMethod,
+        items: items,
+        total: total,
+        taxRate: settings.defaultTaxRate,
+        footer: settings.receiptFooter,
+      );
+    }
+
+    if (action == _ReceiptAction.share) {
+      await _receiptService.shareReceipt(
+        storeName: settings.storeName,
+        currency: settings.currency,
+        paymentMethod: paymentMethod,
+        items: items,
+        total: total,
+        taxRate: settings.defaultTaxRate,
+        footer: settings.receiptFooter,
+      );
+    }
+
+    if (!mounted) return;
+
+    _barcodeFocusNode.requestFocus();
+  }
+
   Future<void> _processCheckout() async {
     if (_isCheckingOut) return;
 
@@ -333,6 +409,8 @@ class _PosPageState extends State<PosPage> {
     try {
       final saleTotal = _total;
       final settings = _settingsService.settings;
+      final saleItems = List<CartItemModel>.from(_cart);
+      final paymentMethod = _selectedPaymentMethod;
 
       for (final item in _cart) {
         final productId = item.product.id;
@@ -359,13 +437,17 @@ class _PosPageState extends State<PosPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Vente enregistrée avec succès - Paiement : $_selectedPaymentMethod',
+            'Vente enregistrée avec succès - Paiement : $paymentMethod',
           ),
           backgroundColor: Colors.green,
         ),
       );
 
-      _barcodeFocusNode.requestFocus();
+      await _showReceiptDialog(
+        items: saleItems,
+        total: saleTotal,
+        paymentMethod: paymentMethod,
+      );
     } finally {
       if (mounted) {
         setState(() {

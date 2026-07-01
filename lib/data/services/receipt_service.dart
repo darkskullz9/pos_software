@@ -158,10 +158,7 @@ class ReceiptService {
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text(
-                    'Paiement',
-                    style: const pw.TextStyle(fontSize: 9),
-                  ),
+                  pw.Text('Paiement', style: const pw.TextStyle(fontSize: 9)),
                   pw.Text(
                     paymentMethod,
                     style: const pw.TextStyle(fontSize: 9),
@@ -189,6 +186,35 @@ class ReceiptService {
     return pdf.save();
   }
 
+  Future<void> shareReceipt({
+    required String storeName,
+    required String currency,
+    required String paymentMethod,
+    required List<CartItemModel> items,
+    required double total,
+    required double taxRate,
+    String? footer,
+    DateTime? date,
+  }) async {
+    final receiptDate = date ?? DateTime.now();
+
+    final bytes = await buildReceiptPdf(
+      storeName: storeName,
+      currency: currency,
+      paymentMethod: paymentMethod,
+      items: items,
+      total: total,
+      taxRate: taxRate,
+      footer: footer,
+      date: receiptDate,
+    );
+
+    await Printing.sharePdf(
+      bytes: bytes,
+      filename: _receiptFileName(receiptDate),
+    );
+  }
+
   Future<void> printReceipt({
     required String storeName,
     required String currency,
@@ -210,9 +236,7 @@ class ReceiptService {
       date: date,
     );
 
-    await Printing.layoutPdf(
-      onLayout: (_) async => bytes,
-    );
+    await Printing.layoutPdf(onLayout: (_) async => bytes);
   }
 
   double _calculatePageHeight(int itemCount) {
@@ -239,5 +263,12 @@ class ReceiptService {
 
     return '${two(date.day)}/${two(date.month)}/${date.year} '
         '${two(date.hour)}:${two(date.minute)}';
+  }
+
+  String _receiptFileName(DateTime date) {
+    String two(int value) => value.toString().padLeft(2, '0');
+
+    return 'ticket_${date.year}${two(date.month)}${two(date.day)}_'
+        '${two(date.hour)}${two(date.minute)}${two(date.second)}.pdf';
   }
 }
