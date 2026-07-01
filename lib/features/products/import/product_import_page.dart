@@ -5,6 +5,9 @@ import '../../../data/services/product_service.dart';
 import '../../../data/services/settings_service.dart';
 import 'product_import_draft.dart';
 import 'product_import_parser.dart';
+import 'product_import_csv_parser.dart';
+
+enum _ProductImportMode { text, csv }
 
 class ProductImportPage extends StatefulWidget {
   final ProductService productService;
@@ -31,6 +34,8 @@ class _ProductImportPageState extends State<ProductImportPage> {
 
   bool _isImporting = false;
 
+  _ProductImportMode _importMode = _ProductImportMode.text;
+
   @override
   void dispose() {
     _textController.dispose();
@@ -39,25 +44,39 @@ class _ProductImportPageState extends State<ProductImportPage> {
   }
 
   void _analyzeText() {
+    final rawText = _textController.text.trim();
+
+    if (rawText.isEmpty) {
+      setState(() {
+        _drafts = [];
+        _selectedIndexes.clear();
+      });
+      return;
+    }
+
     final settings = widget.settingsService.settings;
 
-    final parser = ProductImportParser(
-      productTypes: settings.productTypes,
-      brands: settings.brands,
-      colors: settings.colors,
-      locations: settings.locations,
-    );
-
-    final drafts = parser.parse(_textController.text);
+    final drafts = _importMode == _ProductImportMode.csv
+        ? ProductImportCsvParser(
+            productTypes: settings.productTypes,
+            brands: settings.brands,
+            colors: settings.colors,
+            locations: settings.locations,
+          ).parse(rawText)
+        : ProductImportParser(
+            productTypes: settings.productTypes,
+            brands: settings.brands,
+            colors: settings.colors,
+            locations: settings.locations,
+          ).parse(rawText);
 
     setState(() {
       _drafts = drafts;
-      _selectedIndexes.clear();
-    });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${drafts.length} produit(s) détecté(s)')),
-    );
+      _selectedIndexes
+        ..clear()
+        ..addAll(List<int>.generate(drafts.length, (index) => index));
+    });
   }
 
   void _clearImport() {
@@ -427,6 +446,9 @@ class _ProductImportPageState extends State<ProductImportPage> {
       children: [
         Text('Liste brute', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
+
+        _buildImportModeSelector(),
+        const SizedBox(height: 12),
         Expanded(
           child: TextField(
             controller: _textController,
@@ -434,9 +456,11 @@ class _ProductImportPageState extends State<ProductImportPage> {
             maxLines: null,
             minLines: null,
             textAlignVertical: TextAlignVertical.top,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              hintText: 'Colle ici ta liste de produits...',
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
+              hintText: _importMode == _ProductImportMode.csv
+                  ? 'Colle ici ton CSV...'
+                  : 'Colle ici ta liste de produits...',
             ),
           ),
         ),
@@ -644,6 +668,55 @@ class _ProductImportPageState extends State<ProductImportPage> {
     );
   }
 
+  Widget _buildImportModeSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SegmentedButton<_ProductImportMode>(
+          segments: const [
+            ButtonSegment(
+              value: _ProductImportMode.text,
+              icon: Icon(Icons.notes),
+              label: Text('Texte brut'),
+            ),
+            ButtonSegment(
+              value: _ProductImportMode.csv,
+              icon: Icon(Icons.table_chart),
+              label: Text('CSV'),
+            ),
+          ],
+          selected: {_importMode},
+          onSelectionChanged: (selection) {
+            setState(() {
+              _importMode = selection.first;
+              _drafts = [];
+              _selectedIndexes.clear();
+            });
+          },
+        ),
+        if (_importMode == _ProductImportMode.csv) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Colonnes acceptées : type, brand, color, size, stock, price, pattern, location, description.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: _insertCsvTemplate,
+                icon: const Icon(Icons.content_paste),
+                label: const Text('Modèle CSV'),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _buildImportActions() {
     final isPartialImport = _selectedIndexes.isNotEmpty;
     final duplicateCount = _duplicateImportCount;
@@ -686,5 +759,23 @@ class _ProductImportPageState extends State<ProductImportPage> {
         ),
       ),
     );
+  }
+
+  String get _csvTemplate {
+    return [
+      'type;brand;color;size;stock;price;pattern;location;description',
+      'Pull;Women Only;Marron;;3;4,00;;Étagère 1;',
+      'Pantalon;;Noir;M;7;4,00;cargo;Case 1;',
+      'T-shirt;Nike;Blanc;L;2;2,00;logo;Rond 2;',
+      'Robe;Zara;Rouge;S;1;5,00;fleurie;Portant 1;',
+    ].join('\n');
+  }
+
+  void _insertCsvTemplate() {
+    setState(() {
+      _textController.text = _csvTemplate;
+      _drafts = [];
+      _selectedIndexes.clear();
+    });
   }
 }
