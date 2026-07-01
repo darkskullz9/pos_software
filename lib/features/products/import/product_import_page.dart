@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../../data/models/product_model.dart';
@@ -324,6 +328,69 @@ class _ProductImportPageState extends State<ProductImportPage> {
     );
   }
 
+  Future<void> _pickCsvFile() async {
+    final result = await FilePicker.pickFiles(
+      dialogTitle: 'Choisir un fichier CSV',
+      type: FileType.custom,
+      allowedExtensions: ['csv', 'txt'],
+      allowMultiple: false,
+      withData: true,
+    );
+
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+
+    final file = result.files.single;
+
+    String content;
+
+    if (file.bytes != null) {
+      content = _decodeCsvBytes(file.bytes!);
+    } else if (file.path != null) {
+      final bytes = await File(file.path!).readAsBytes();
+      content = _decodeCsvBytes(bytes);
+    } else {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Impossible de lire le fichier sélectionné.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _importMode = _ProductImportMode.csv;
+      _textController.text = content;
+      _drafts = [];
+      _selectedIndexes.clear();
+    });
+
+    _analyzeText();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Fichier chargé et analysé : ${file.name}'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  String _decodeCsvBytes(List<int> bytes) {
+    try {
+      return utf8.decode(bytes);
+    } catch (_) {
+      return latin1.decode(bytes);
+    }
+  }
+
   Future<void> _importDrafts() async {
     if (_drafts.isEmpty || _isImporting) return;
 
@@ -620,7 +687,7 @@ class _ProductImportPageState extends State<ProductImportPage> {
             SizedBox(
               width: 180,
               child: DropdownButtonFormField<String>(
-                value: availableSizes.contains(_selectedBulkSize)
+                initialValue: availableSizes.contains(_selectedBulkSize)
                     ? _selectedBulkSize
                     : availableSizes.firstOrNull,
                 decoration: const InputDecoration(
@@ -703,6 +770,12 @@ class _ProductImportPageState extends State<ProductImportPage> {
                   'Colonnes acceptées : type, brand, color, size, stock, price, pattern, location, description.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: _pickCsvFile,
+                icon: const Icon(Icons.folder_open),
+                label: const Text('Choisir CSV'),
               ),
               const SizedBox(width: 8),
               OutlinedButton.icon(
