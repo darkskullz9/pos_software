@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -763,25 +764,29 @@ class _ProductImportPageState extends State<ProductImportPage> {
         ),
         if (_importMode == _ProductImportMode.csv) ...[
           const SizedBox(height: 8),
-          Row(
+          Text(
+            'Colonnes acceptées : type, brand, color, size, stock, price, pattern, location, description.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              Expanded(
-                child: Text(
-                  'Colonnes acceptées : type, brand, color, size, stock, price, pattern, location, description.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-              const SizedBox(width: 8),
               OutlinedButton.icon(
                 onPressed: _pickCsvFile,
                 icon: const Icon(Icons.folder_open),
                 label: const Text('Choisir CSV'),
               ),
-              const SizedBox(width: 8),
               OutlinedButton.icon(
                 onPressed: _insertCsvTemplate,
                 icon: const Icon(Icons.content_paste),
                 label: const Text('Modèle CSV'),
+              ),
+              OutlinedButton.icon(
+                onPressed: _exportCsvTemplate,
+                icon: const Icon(Icons.save_alt),
+                label: const Text('Exporter modèle'),
               ),
             ],
           ),
@@ -850,5 +855,47 @@ class _ProductImportPageState extends State<ProductImportPage> {
       _drafts = [];
       _selectedIndexes.clear();
     });
+  }
+
+  Future<void> _exportCsvTemplate() async {
+    final csvContent = '\uFEFF$_csvTemplate\n';
+    final bytes = Uint8List.fromList(utf8.encode(csvContent));
+
+    final selectedPath = await FilePicker.saveFile(
+      dialogTitle: 'Exporter le modèle CSV',
+      fileName: 'modele_import_produits.csv',
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+    );
+
+    if (selectedPath == null) {
+      return;
+    }
+
+    final outputPath = selectedPath.toLowerCase().endsWith('.csv')
+        ? selectedPath
+        : '$selectedPath.csv';
+
+    try {
+      await File(outputPath).writeAsBytes(bytes, flush: true);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Modèle CSV exporté : $outputPath'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur pendant l’export du modèle CSV : $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }
