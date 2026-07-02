@@ -1,7 +1,7 @@
-name: flutter_application_1
-description: "A new Flutter project."
+name: pos_software
+description: "A POS software project."
 publish_to: 'none'
-version: 0.1.0+1
+version: 0.5.0+1
 
 environment:
   sdk: ^3.12.0

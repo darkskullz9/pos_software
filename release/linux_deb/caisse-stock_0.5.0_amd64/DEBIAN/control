@@ -1,0 +1,8 @@
+Package: pos-software
+Version: 0.5.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Darkskullz9
+Description: Logiciel de caisse et de gestion de stock.
+ Caisse Stock permet de gérer un inventaire, importer des produits, générer des codes-barres, encaisser, produire des tickets et compter la caisse.
